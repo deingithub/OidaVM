@@ -15,7 +15,7 @@ pub fn main() void {
 }
 
 fn instruction(comptime op: Opcode, comptime address: u8) u16 {
-    return (@intCast(u16, @enumToInt(op)) << 8) + address;
+    return (@intCast(u16, @enumToInt(op)) << 12) + address;
 }
 
 fn hello_world(vm: *OidaVm) void {

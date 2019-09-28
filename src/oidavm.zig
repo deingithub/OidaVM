@@ -1,6 +1,6 @@
 const std = @import("std");
 
-pub const Opcode = enum(u8) {
+pub const Opcode = enum(u4) {
     /// Skips instruction.
     Noop = 0x0,
 
@@ -33,12 +33,12 @@ pub const Opcode = enum(u8) {
 };
 
 pub const OidaVm = struct {
-    memory: [256]u16 = [_]u16{0} ** 256,
+    memory: [4096]u16 = [_]u16{0} ** 4096,
     accumulator: u16 = 0,
-    instruction_ptr: u8 = 0,
+    instruction_ptr: u12 = 0,
 
     /// Executes a single instruction
-    fn exec(this: *OidaVm, op: Opcode, addr: u8) void {
+    fn exec(this: *OidaVm, op: Opcode, addr: u12) void {
         switch (op) {
             .Noop => return,
             .Read => this.accumulator = this.memory[addr],
@@ -65,29 +65,40 @@ pub const OidaVm = struct {
 
     /// Starts to evaluate memory as instructions starting at `addr`.
     /// Invalid opcodes invoke safety-checked UB, so try to avoid them.
-    fn eval(this: *OidaVm, addr: u8) void {
+    fn eval(this: *OidaVm, addr: u12) void {
         this.instruction_ptr = addr;
-        while (this.instruction_ptr < 255) : (this.instruction_ptr += 1) {
-            const address: u8 = @truncate(u8, this.memory[this.instruction_ptr]);
-            const operation: u8 = @intCast(u8, this.memory[this.instruction_ptr] >> 8);
+        while (this.instruction_ptr < 4095) : (this.instruction_ptr += 1) {
+            const address: u12 = @truncate(u12, this.memory[this.instruction_ptr]);
+            const operation: u4 = @intCast(u4, this.memory[this.instruction_ptr] >> 12);
             if (operation == @enumToInt(Opcode.Halt)) return;
             this.exec(@intToEnum(Opcode, operation), address);
         }
     }
 
     /// Writes `value` to `addr` in the VM's memory.
-    fn load(this: *OidaVm, addr: u8, value: u16) void {
+    fn load(this: *OidaVm, addr: u12, value: u16) void {
         this.memory[addr] = value;
     }
 
     /// Dumps the VM's state to stderr.
     fn dump(this: OidaVm) void {
         std.debug.warn("== OidaVM dump ==\n");
-        std.debug.warn("Instruction Pointer: 0x{X:0^2}\n", this.instruction_ptr);
+        std.debug.warn("Instruction Pointer: 0x{X:0^3}\n", this.instruction_ptr);
         std.debug.warn("Accumulator: 0x{X:0^4}\n", this.accumulator);
+        var elided = false;
         std.debug.warn("Memory: \n");
         for (this.memory) |val, addr| {
-            std.debug.warn("{}{}0x{X:0^2}: 0x{X:0^4}{} {}", if (addr == this.instruction_ptr) "\x1b[7m" else "", // Inverted formatting for instruction ptr
+            // Check if this row is entirely made up of zeroes, if yes, skip it
+            const row_start = addr - addr % 8;
+            if (std.mem.eql(u16, this.memory[row_start .. row_start + 8], [_]u16{0} ** 8)) {
+                elided = true;
+                continue;
+            }
+            if (elided) {
+                std.debug.warn(" [elided]\n");
+                elided = false;
+            }
+            std.debug.warn("{}{}0x{X:0^3}: 0x{X:0^4}{} {}", if (addr == this.instruction_ptr) "\x1b[7m" else "", // Inverted formatting for instruction ptr
                 if (val != 0) "\x1b[1m" else "", // Bold formatting for non-null values
                 addr, val, if (addr == this.instruction_ptr or val != 0) "\x1b[0m" else "", // Reset all formatting
                 if ((addr + 1) % 8 == 0) "\n" else "| " // If next entry is 8, 16, … print newline
@@ -100,6 +111,6 @@ pub const OidaVm = struct {
     fn flush(this: *OidaVm) void {
         this.instruction_ptr = 0;
         this.accumulator = 0;
-        this.memory = [_]u16{0} ** 256;
+        this.memory = [_]u16{0} ** 4096;
     }
 };

@@ -3,22 +3,31 @@ const std = @import("std");
 pub const Opcode = enum(u8) {
     /// Skips instruction.
     Noop = 0x0,
+
     /// Reads address into accumulator.
     Read = 0x1,
+
     /// Dereferences address, adds to accumulator. Overflow gets silently truncated to 65535.
     Add = 0x2,
+
     /// Dereferences address, substracts from accumulator. Overflow gets silently truncated to 0.
     Sub = 0x3,
+
     /// Prints numeric value of accumulator to stderr.
     Output = 0x4,
+
     /// Stops execution.
     Halt = 0x5,
+
     /// Dereferences address, prints ASCII representation of lower 8 bits to stderr.
     OutputChar = 0x6,
+
     /// Unconditionally continues execution at address.
     Jump = 0x7,
+
     /// Continues execution at address if accumulator is 0, otherwise skips instruction.
     JumpEqualsZero = 0x8,
+
     /// Writes content of accumulator to address.
     Write = 0x9,
 };

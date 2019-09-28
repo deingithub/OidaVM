@@ -5,10 +5,10 @@ pub fn main() void {
     var vm = OidaVm{};
     std.debug.warn("Hello World:\n");
     hello_world(&vm);
-    vm.dump();
+    // vm.dump();
     std.debug.warn("Count to 100:\n");
     count_to_100(&vm);
-    vm.dump();
+    // vm.dump();
     std.debug.warn("Fourier Sequence:\n");
     fourier_sequence(&vm);
     vm.dump();
@@ -33,19 +33,25 @@ fn hello_world(vm: *OidaVm) void {
 
 fn count_to_100(vm: *OidaVm) void {
     vm.flush();
-    vm.load(0, 1);
-    vm.load(2, 99);
-    vm.load(10, "\n"[0]);
-    vm.load(100, instruction(.Add, 0));
-    vm.load(101, instruction(.Write, 1));
-    vm.load(102, instruction(.Sub, 2));
+
+    const _one = 0;
+    const _counter = 1;
+    const _ninetynine = 2;
+    const _newline = 10;
+    vm.load(_one, 1);
+    vm.load(_ninetynine, 99);
+    vm.load(_newline, "\n"[0]);
+    vm.load(100, instruction(.Add, _one));
+    vm.load(101, instruction(.Write, _counter));
+    vm.load(102, instruction(.Sub, _ninetynine));
     vm.load(103, instruction(.JumpEqualsZero, 110));
-    vm.load(104, instruction(.Read, 1));
+    vm.load(104, instruction(.Read, _counter));
     vm.load(105, instruction(.Output, 0));
-    vm.load(106, instruction(.Read, 10));
+    vm.load(106, instruction(.Read, _newline));
     vm.load(107, instruction(.OutputChar, 0));
     vm.load(108, instruction(.Halt, 0));
-    vm.load(110, instruction(.Read, 1));
+
+    vm.load(110, instruction(.Read, _counter));
     vm.load(111, instruction(.Jump, 100));
     vm.eval(100);
 }

@@ -1,5 +1,6 @@
 const std = @import("std");
 
+/// The upper four bits of a word
 pub const Opcode = enum(u4) {
     /// Skips instruction.
     Noop = 0x0,
@@ -13,15 +14,6 @@ pub const Opcode = enum(u4) {
     /// Dereferences address, substracts from accumulator. Overflow gets silently truncated to 0.
     Sub = 0x3,
 
-    /// Prints numeric value of accumulator to stderr.
-    Output = 0x4,
-
-    /// Stops execution.
-    Halt = 0x5,
-
-    /// Dereferences address, prints ASCII representation of lower 8 bits to stderr.
-    OutputChar = 0x6,
-
     /// Unconditionally continues execution at address.
     Jump = 0x7,
 
@@ -30,6 +22,21 @@ pub const Opcode = enum(u4) {
 
     /// Writes content of accumulator to address.
     Write = 0x9,
+
+    /// Interprets the entirety of the word as an extended opcode
+    Extend = 0xf,
+};
+
+/// The lower twelve bits of a word as used in conjunction with Opcode.Extend (0xf)
+pub const ExtendedOpcode = enum(u12) {
+    /// Halts execution.
+    Halt = 0x00f,
+
+    /// Writes the content of accumulator to stderr.
+    OutputNumeric = 0x010,
+
+    /// Writes the lower eight bits of accumulator interpreted as ASCII to stderr.
+    OutputAscii = 0x011,
 };
 
 pub const OidaVm = struct {
@@ -52,14 +59,17 @@ pub const OidaVm = struct {
             } else {
                 this.accumulator = 0;
             },
-            .Output => std.debug.warn("{}", this.accumulator),
-            .Halt => return, // Handled by eval()
-            .OutputChar => std.debug.warn("{c}", @truncate(u8, this.accumulator)),
+
             .Jump => this.instruction_ptr = addr - 1, // The continuation of eval()'s loop will increase iptr by one
             .JumpEqualsZero => if (this.accumulator == 0) {
                 this.instruction_ptr = addr - 1;
             } else return,
             .Write => this.memory[addr] = this.accumulator,
+            .Extend => switch (@intToEnum(ExtendedOpcode, addr)) {
+                .Halt => return, // Handled by eval()
+                .OutputNumeric => std.debug.warn("{}", this.accumulator),
+                .OutputAscii => std.debug.warn("{c}", @truncate(u8, this.accumulator)),
+            },
         }
     }
 
@@ -70,7 +80,7 @@ pub const OidaVm = struct {
         while (this.instruction_ptr < 4095) : (this.instruction_ptr += 1) {
             const address: u12 = @truncate(u12, this.memory[this.instruction_ptr]);
             const operation: u4 = @intCast(u4, this.memory[this.instruction_ptr] >> 12);
-            if (operation == @enumToInt(Opcode.Halt)) return;
+            if (this.memory[this.instruction_ptr] == 0xf00f) return; // Extend-Halt opcode
             this.exec(@intToEnum(Opcode, operation), address);
         }
     }

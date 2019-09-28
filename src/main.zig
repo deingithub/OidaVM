@@ -24,10 +24,10 @@ fn hello_world(vm: *OidaVm) void {
     inline for (hello) |c, i| {
         vm.load(@intCast(u8, i), c); // Write character into i
         vm.load(@intCast(u8, (i * 2) + 100), instruction(.Read, @intCast(u8, i))); // Write READ i into 100 plus i * 2
-        vm.load(@intCast(u8, (i * 2 + 1) + 100), instruction(.OutputChar, 0)); // Write OUTPUTCHAR into 100 plus i * 2, plus 1
+        vm.load(@intCast(u8, (i * 2 + 1) + 100), instruction(.Extend, @enumToInt(ExtendedOpcode.OutputAscii))); // Write OUTPUTCHAR into 100 plus i * 2, plus 1
         // i.e. i = 0 => 100, 101; i = 1 => 102, 103; i = 2 => 104, 105; …
     }
-    vm.load(100 + hello.len * 2, instruction(.Halt, 0)); // Write HALT after last instruction
+    vm.load(100 + hello.len * 2, instruction(.Extend, @enumToInt(ExtendedOpcode.Halt))); // Write HALT after last instruction
     vm.eval(100);
 }
 
@@ -46,10 +46,10 @@ fn count_to_100(vm: *OidaVm) void {
     vm.load(102, instruction(.Sub, _ninetynine));
     vm.load(103, instruction(.JumpEqualsZero, 110));
     vm.load(104, instruction(.Read, _counter));
-    vm.load(105, instruction(.Output, 0));
+    vm.load(105, instruction(.Extend, @enumToInt(ExtendedOpcode.OutputNumeric)));
     vm.load(106, instruction(.Read, _newline));
-    vm.load(107, instruction(.OutputChar, 0));
-    vm.load(108, instruction(.Halt, 0));
+    vm.load(107, instruction(.Extend, @enumToInt(ExtendedOpcode.OutputAscii)));
+    vm.load(108, instruction(.Extend, @enumToInt(ExtendedOpcode.Halt)));
 
     vm.load(110, instruction(.Read, _counter));
     vm.load(111, instruction(.Jump, 100));
@@ -81,15 +81,15 @@ fn fourier_sequence(vm: *OidaVm) void {
     vm.load(103, instruction(.Write, _overflow_acc));
     vm.load(104, instruction(.Sub, _overflow_full));
     vm.load(105, instruction(.JumpEqualsZero, 110));
-    vm.load(106, instruction(.Halt, 0));
+    vm.load(106, instruction(.Extend, @enumToInt(ExtendedOpcode.Halt)));
 
     vm.load(110, instruction(.Read, _overflow_acc));
     vm.load(111, instruction(.Write, _old));
     vm.load(112, instruction(.Read, _oldtemp));
     vm.load(113, instruction(.Write, _new));
-    vm.load(114, instruction(.Output, 0));
+    vm.load(114, instruction(.Extend, @enumToInt(ExtendedOpcode.OutputNumeric)));
     vm.load(115, instruction(.Read, _newline));
-    vm.load(116, instruction(.OutputChar, 0));
+    vm.load(116, instruction(.Extend, @enumToInt(ExtendedOpcode.OutputAscii)));
     vm.load(117, instruction(.Jump, 100));
     vm.eval(100);
 }

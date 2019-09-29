@@ -1,43 +1,42 @@
 const std = @import("std");
 
-/// The upper four bits of a word
-pub const Opcode = enum(u4) {
+/// Uppermost four bits of a word.
+pub const GlobalOpcode = enum(u4) {
     /// Skips instruction.
     NoOp = 0x0,
 
-    /// Reads address into accumulator.
-    Fetch = 0x1,
+    /// Selects the highest four bits of the address as page and unconditionally continues execution at address.
+    PageAndJump = 0xa,
 
-    /// Dereferences address, adds to accumulator. Overflow gets silently truncated to 65535.
-    IncBy = 0x2,
+    /// Dereference address and copy content into ACC.
+    FarFetch = 0xb,
 
-    /// Dereferences address, substracts from accumulator. Overflow gets silently truncated to 0.
-    Minus = 0x3,
+    /// Copy ACC into address.
+    FarWrite = 0xc,
 
-    /// Unconditionally continues execution at address.
-    Jump = 0x7,
-
-    /// Continues execution at address if accumulator is 0, otherwise skips instruction.
-    JumpEZ = 0x8,
-
-    /// Writes content of accumulator to address.
-    Write = 0x9,
-
-    /// Interprets the entirety of the word as an extended opcode
+    /// Interprets the entirety of the word as an extended opcode.
     Extend = 0xf,
 };
 
+/// Uppermost eight bits of a word.
+pub const PagedOpcode = enum(u8) {
+    IncrementBy = 0x11,
+    Minus = 0x12,
+    Fetch = 0x20,
+    Write = 0x21,
+    Jump = 0x30,
+    JumpEZ = 0x31,
+};
 
-
-/// The lower twelve bits of a word as used in conjunction with Opcode.Extend (0xf)
+/// The lower twelve bits of a word as used in conjunction with GlobalOpcode.Extend (0xf)
 pub const ExtendedOpcode = enum(u12) {
     /// Halts execution.
     Halt = 0x00f,
 
-    /// Writes the content of accumulator to stderr.
+    /// Writes the content of ACC to stderr.
     OutputNumeric = 0x010,
 
-    /// Writes the lower eight bits of accumulator interpreted as ASCII to stderr.
+    /// Writes the lower eight bits of ACC interpreted as ASCII to stderr.
     OutputChar = 0x011,
 
     /// Writes \n to stderr.
@@ -48,34 +47,51 @@ pub const OidaVm = struct {
     memory: [4096]u16 = [_]u16{0} ** 4096,
     accumulator: u16 = 0,
     instruction_ptr: u12 = 0,
+    page: u4 = 0,
 
     /// Executes a single instruction
-    fn exec(this: *OidaVm, op: Opcode, addr: u12) void {
-        switch (op) {
-            .NoOp => return,
-            .Fetch => this.accumulator = this.memory[addr],
-            .IncBy => if (@intCast(u32, this.accumulator) + this.memory[addr] <= 65535) {
-                this.accumulator += this.memory[addr];
-            } else {
-                this.accumulator = 65535;
-            },
-            .Minus => if (this.accumulator >= this.memory[addr]) {
-                this.accumulator -= this.memory[addr];
-            } else {
-                this.accumulator = 0;
-            },
-
-            .Jump => this.instruction_ptr = addr - 1, // The continuation of eval()'s loop will increase iptr by one
-            .JumpEZ => if (this.accumulator == 0) {
-                this.instruction_ptr = addr - 1;
-            } else return,
-            .Write => this.memory[addr] = this.accumulator,
-            .Extend => switch (@intToEnum(ExtendedOpcode, addr)) {
-                .Halt => return, // Handled by eval()
-                .OutputNumeric => std.debug.warn("{}", this.accumulator),
-                .OutputChar => std.debug.warn("{c}", @truncate(u8, this.accumulator)),
-                .OutputLinefeed => std.debug.warn("\n"),
-            },
+    fn exec(this: *OidaVm, word: u16) void {
+        if (word >> 12 > 0 and word >> 12 < 0xa) {
+            // Paged Opcodes: 0x01..0x99
+            const address: u12 = (@intCast(u12, this.page) << 8) + @truncate(u8, word);
+            switch (@intToEnum(PagedOpcode, @intCast(u8, word >> 8))) {
+                .IncrementBy => if (usize(this.accumulator) + this.memory[address] >= 65535) {
+                    this.accumulator = 65535;
+                } else {
+                    this.accumulator += this.memory[address];
+                },
+                .Minus => if (this.accumulator >= this.memory[address]) {
+                    this.accumulator -= this.memory[address];
+                } else {
+                    this.accumulator = 0;
+                },
+                .Fetch => this.accumulator = this.memory[address],
+                .Write => this.memory[address] = this.accumulator,
+                .Jump => this.instruction_ptr = address - 1,
+                .JumpEZ => if (this.accumulator == 0) {
+                    this.instruction_ptr = address - 1;
+                } else {
+                    return;
+                },
+            }
+        } else {
+            // Unpaged Opcodes: 0x0000, 0xa..0xf
+            const address = @truncate(u12, word);
+            switch (@intToEnum(GlobalOpcode, @intCast(u4, word >> 12))) {
+                .NoOp => return,
+                .FarFetch => this.accumulator = this.memory[address],
+                .FarWrite => this.memory[address] = this.accumulator,
+                .PageAndJump => {
+                    this.instruction_ptr = address - 1;
+                    this.page = @intCast(u4, address >> 8);
+                },
+                .Extend => switch (@intToEnum(ExtendedOpcode, address)) {
+                    .Halt => return, // Handled by eval()
+                    .OutputNumeric => std.debug.warn("{}", this.accumulator),
+                    .OutputChar => std.debug.warn("{c}", @truncate(u8, this.accumulator)),
+                    .OutputLinefeed => std.debug.warn("\n"),
+                },
+            }
         }
     }
 
@@ -84,10 +100,8 @@ pub const OidaVm = struct {
     fn eval(this: *OidaVm, addr: u12) void {
         this.instruction_ptr = addr;
         while (this.instruction_ptr < 4095) : (this.instruction_ptr += 1) {
-            const address: u12 = @truncate(u12, this.memory[this.instruction_ptr]);
-            const operation: u4 = @intCast(u4, this.memory[this.instruction_ptr] >> 12);
             if (this.memory[this.instruction_ptr] == 0xf00f) return; // Extend-Halt opcode
-            this.exec(@intToEnum(Opcode, operation), address);
+            this.exec(this.memory[this.instruction_ptr]);
         }
     }
 
@@ -101,6 +115,8 @@ pub const OidaVm = struct {
         std.debug.warn("== OidaVM dump ==\n");
         std.debug.warn("Instruction Pointer: 0x{X:0^3}\n", this.instruction_ptr);
         std.debug.warn("Accumulator: 0x{X:0^4}\n", this.accumulator);
+        std.debug.warn("Page {X} [{X:0^3}..{X:0^3}]\n", this.page, this.page * u16(256), this.page * u16(256) + 255);
+
         var elided = false;
         std.debug.warn("Memory: \n");
         for (this.memory) |val, addr| {

@@ -1,6 +1,6 @@
 const std = @import("std");
 
-/// Uppermost four bits of a word.
+/// Uppermost four bits of a word. Can address all memory.
 pub const GlobalOpcode = enum(u4) {
     /// Skips instruction.
     NoOp = 0x0,
@@ -18,17 +18,28 @@ pub const GlobalOpcode = enum(u4) {
     Extend = 0xf,
 };
 
-/// Uppermost eight bits of a word.
+/// Uppermost eight bits of a word. Can only use addresses within the current page.
 pub const PagedOpcode = enum(u8) {
+    /// Dereference address and add it to ACC. Overflow gets silently truncated to 65535.
     IncrementBy = 0x11,
+
+    /// Dereference address and subtract it from ACC. Underflow gets silently truncated to 0.
     Minus = 0x12,
+
+    /// Dereference address and copy it into ACC.
     Fetch = 0x20,
+
+    /// Copy ACC into address.
     Write = 0x21,
+
+    /// Unconditionally continue execution at address.
     Jump = 0x30,
+
+    /// Continue execution at address if ACC is 0, otherwise skip instruction.
     JumpEZ = 0x31,
 };
 
-/// The lower twelve bits of a word as used in conjunction with GlobalOpcode.Extend (0xf)
+/// The lower twelve bits of a word as used in conjunction with GlobalOpcode.Extend (0xf). Can't address memory.
 pub const ExtendedOpcode = enum(u12) {
     /// Halts execution.
     Halt = 0x00f,

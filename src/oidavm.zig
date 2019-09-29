@@ -3,22 +3,22 @@ const std = @import("std");
 /// The upper four bits of a word
 pub const Opcode = enum(u4) {
     /// Skips instruction.
-    Noop = 0x0,
+    NoOp = 0x0,
 
     /// Reads address into accumulator.
-    Read = 0x1,
+    Fetch = 0x1,
 
     /// Dereferences address, adds to accumulator. Overflow gets silently truncated to 65535.
-    Add = 0x2,
+    IncBy = 0x2,
 
     /// Dereferences address, substracts from accumulator. Overflow gets silently truncated to 0.
-    Sub = 0x3,
+    Minus = 0x3,
 
     /// Unconditionally continues execution at address.
     Jump = 0x7,
 
     /// Continues execution at address if accumulator is 0, otherwise skips instruction.
-    JumpEqualsZero = 0x8,
+    JumpEZ = 0x8,
 
     /// Writes content of accumulator to address.
     Write = 0x9,
@@ -26,6 +26,8 @@ pub const Opcode = enum(u4) {
     /// Interprets the entirety of the word as an extended opcode
     Extend = 0xf,
 };
+
+
 
 /// The lower twelve bits of a word as used in conjunction with Opcode.Extend (0xf)
 pub const ExtendedOpcode = enum(u12) {
@@ -36,7 +38,10 @@ pub const ExtendedOpcode = enum(u12) {
     OutputNumeric = 0x010,
 
     /// Writes the lower eight bits of accumulator interpreted as ASCII to stderr.
-    OutputAscii = 0x011,
+    OutputChar = 0x011,
+
+    /// Writes \n to stderr.
+    OutputLinefeed = 0x012,
 };
 
 pub const OidaVm = struct {
@@ -47,28 +52,29 @@ pub const OidaVm = struct {
     /// Executes a single instruction
     fn exec(this: *OidaVm, op: Opcode, addr: u12) void {
         switch (op) {
-            .Noop => return,
-            .Read => this.accumulator = this.memory[addr],
-            .Add => if (@intCast(u32, this.accumulator) + this.memory[addr] <= 65535) {
+            .NoOp => return,
+            .Fetch => this.accumulator = this.memory[addr],
+            .IncBy => if (@intCast(u32, this.accumulator) + this.memory[addr] <= 65535) {
                 this.accumulator += this.memory[addr];
             } else {
                 this.accumulator = 65535;
             },
-            .Sub => if (this.accumulator >= this.memory[addr]) {
+            .Minus => if (this.accumulator >= this.memory[addr]) {
                 this.accumulator -= this.memory[addr];
             } else {
                 this.accumulator = 0;
             },
 
             .Jump => this.instruction_ptr = addr - 1, // The continuation of eval()'s loop will increase iptr by one
-            .JumpEqualsZero => if (this.accumulator == 0) {
+            .JumpEZ => if (this.accumulator == 0) {
                 this.instruction_ptr = addr - 1;
             } else return,
             .Write => this.memory[addr] = this.accumulator,
             .Extend => switch (@intToEnum(ExtendedOpcode, addr)) {
                 .Halt => return, // Handled by eval()
                 .OutputNumeric => std.debug.warn("{}", this.accumulator),
-                .OutputAscii => std.debug.warn("{c}", @truncate(u8, this.accumulator)),
+                .OutputChar => std.debug.warn("{c}", @truncate(u8, this.accumulator)),
+                .OutputLinefeed => std.debug.warn("\n"),
             },
         }
     }

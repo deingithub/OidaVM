@@ -2,16 +2,16 @@ const std = @import("std");
 
 /// Uppermost four bits of a word. Can address all memory.
 pub const GlobalOpcode = enum(u4) {
-    /// Skips instruction.
+    /// noopr — Skips instruction.
     NoOp = 0x0,
 
-    /// Selects the highest four bits of the address as page and unconditionally continues execution at address.
+    /// pgjmp — Selects the highest four bits of the address as page and unconditionally continues execution at address.
     PageAndJump = 0xa,
 
-    /// Dereference address and copy content into ACC.
+    /// fftch — Dereference address and copy content into ACC.
     FarFetch = 0xb,
 
-    /// Copy ACC into address.
+    /// fwrte — Copy ACC into address.
     FarWrite = 0xc,
 
     /// Interprets the entirety of the word as an extended opcode.
@@ -20,38 +20,44 @@ pub const GlobalOpcode = enum(u4) {
 
 /// Uppermost eight bits of a word. Can only use addresses within the current page.
 pub const PagedOpcode = enum(u8) {
-    /// Dereference address and add it to ACC. Overflow gets silently truncated to 65535.
+    /// incby — Dereference address and add it to ACC. Overflow gets silently truncated to 65535.
     IncrementBy = 0x11,
 
-    /// Dereference address and subtract it from ACC. Underflow gets silently truncated to 0.
+    /// minus — Dereference address and subtract it from ACC. Underflow gets silently truncated to 0.
     Minus = 0x12,
 
-    /// Dereference address and copy it into ACC.
+    /// fetch — Dereference address and copy it into ACC.
     Fetch = 0x20,
 
-    /// Copy ACC into address.
+    /// write — Copy ACC into address.
     Write = 0x21,
 
-    /// Unconditionally continue execution at address.
+    /// jmpto — Unconditionally continue execution at address.
     Jump = 0x30,
 
-    /// Continue execution at address if ACC is 0, otherwise skip instruction.
+    /// jmpez — Continue execution at address if ACC is 0, otherwise skip instruction.
     JumpEZ = 0x31,
 };
 
 /// The lower twelve bits of a word as used in conjunction with GlobalOpcode.Extend (0xf). Can't address memory.
 pub const ExtendedOpcode = enum(u12) {
-    /// Halts execution.
+    /// cease — Halts execution.
     Halt = 0x00f,
 
-    /// Writes the content of ACC to stderr.
+    /// outnm — Writes the content of ACC to stderr.
     OutputNumeric = 0x010,
 
-    /// Writes the lower eight bits of ACC interpreted as ASCII to stderr.
+    /// outch — Writes the lower eight bits of ACC interpreted as ASCII to stderr.
     OutputChar = 0x011,
 
-    /// Writes \n to stderr.
+    /// outlf — Writes \n to stderr.
     OutputLinefeed = 0x012,
+
+    // outhx — Writes the content of ACC formatted as hexadecimal to stderr.
+    OutputHex = 0x013,
+
+    /// inacc — Awaits one-word input from user and writes it into ACC.
+    InputACC = 0x020,
 };
 
 pub const OidaVm = struct {
@@ -67,16 +73,7 @@ pub const OidaVm = struct {
             const address = (@intCast(u12, this.page) << 8) + @truncate(u8, word);
             const opcode = @intCast(u8, word >> 8);
             if (!enum_check(PagedOpcode, opcode)) {
-                std.debug.warn(
-                    \\
-                    \\== VM PANIC ==
-                    \\Encountered invalid opcode 0x{X:0^2} at address 0x{X:0^3}.
-                    \\== VM PANIC ==
-                    \\
-                    \\
-                , opcode, this.instruction_ptr);
-                this.dump();
-                std.process.exit(1);
+                this.vm_panic("Encountered invalid opcode 0x{X:0^2} at address 0x{X:0^3}.", opcode, this.instruction_ptr);
             }
             switch (@intToEnum(PagedOpcode, opcode)) {
                 .IncrementBy => if (usize(this.accumulator) + this.memory[address] >= 65535) {
@@ -103,16 +100,7 @@ pub const OidaVm = struct {
             const address = @truncate(u12, word);
             const opcode = @intCast(u4, word >> 12);
             if (!enum_check(GlobalOpcode, opcode)) {
-                std.debug.warn(
-                    \\
-                    \\== VM PANIC ==
-                    \\Encountered invalid opcode 0x{X} at address 0x{X:0^3}.
-                    \\== VM PANIC ==
-                    \\
-                    \\
-                , opcode, this.instruction_ptr);
-                this.dump();
-                std.process.exit(1);
+                this.vm_panic("Encountered invalid opcode 0x{X} at address 0x{X:0^3}.", opcode, this.instruction_ptr);
             }
             switch (@intToEnum(GlobalOpcode, opcode)) {
                 .NoOp => return,
@@ -124,22 +112,24 @@ pub const OidaVm = struct {
                 },
                 .Extend => {
                     if (!enum_check(ExtendedOpcode, address)) {
-                        std.debug.warn(
-                            \\
-                            \\== VM PANIC ==
-                            \\Encountered invalid opcode 0xF{X:0^3} at address 0x{X:0^3}.
-                            \\== VM PANIC ==
-                            \\
-                            \\
-                        , address, this.instruction_ptr);
-                        this.dump();
-                        std.process.exit(1);
+                        this.vm_panic("Encountered invalid opcode 0xF{X:0^3} at address 0x{X:0^3}.", address, this.instruction_ptr);
                     }
                     switch (@intToEnum(ExtendedOpcode, address)) {
                         .Halt => return, // Handled by eval()
                         .OutputNumeric => std.debug.warn("{}", this.accumulator),
                         .OutputChar => std.debug.warn("{c}", @truncate(u8, this.accumulator)),
+                        .OutputHex => std.debug.warn("{X:0^4}", this.accumulator),
                         .OutputLinefeed => std.debug.warn("\n"),
+                        .InputACC => {
+                            var buffer = std.Buffer.initSize(std.heap.direct_allocator, 0) catch this.vm_panic("OOM");
+                            defer buffer.deinit();
+
+                            this.accumulator = while (true) : (std.debug.warn("Please use hex format: 0000-ffff\n")) {
+                                std.debug.warn("Instruction at 0x{X:0^3} requests one word input: ", this.instruction_ptr);
+                                const line = std.io.readLine(&buffer) catch this.vm_panic("Failed to read from STDIN");
+                                break std.fmt.parseInt(u16, buffer.toSlice(), 16) catch continue;
+                            } else unreachable;
+                        },
                     }
                 },
             }
@@ -196,6 +186,12 @@ pub const OidaVm = struct {
         this.instruction_ptr = 0;
         this.accumulator = 0;
         this.memory = [_]u16{0} ** 4096;
+    }
+
+    fn vm_panic(this: *OidaVm, comptime format: []const u8, args: ...) noreturn {
+        std.debug.warn("\n== VM PANIC ==\n" ++ format ++ "\n", args);
+        this.dump();
+        std.process.exit(1);
     }
 };
 

@@ -1,0 +1,31 @@
+; Addresses
+= ninetynine #1
+= one #2
+= counter #3
+
+; Labels
+= start #a
+= loop #20
+
+; Jump to entry point
+pgjmp $start
+
+; Constants
+:= $one
+#1
+:= $ninetynine
+#63
+
+:= $start
+incby $one
+write $counter
+minus $ninetynine
+jmpez $loop
+fetch $counter
+outnm
+outlf
+cease
+
+:= $loop
+fetch $counter
+jmpto $start

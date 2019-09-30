@@ -1,0 +1,73 @@
+; Addresses
+= backup #2
+= val #3
+= val_minus_one #4
+
+; Labels
+= start #a
+= maybe_yay #40
+= too_low_point #60
+= too_low #100
+= too_big #200
+= yay #300
+
+; Jump to entry point
+pgjmp $start
+
+; One should probably set these randomly. TODO add instruction for that
+:= $val
+#45
+:= $val_minus_one
+#44
+
+:= $start
+inacc
+write $backup
+minus $val
+jmpez $maybe_yay
+pgjmp $too_big
+
+; Either correct or too low
+:= $maybe_yay
+fetch $backup
+minus $val_minus_one
+jmpez $too_low_point
+pgjmp $yay
+
+; PageAndJump to toolow
+:= $too_low_point
+pgjmp $too_low
+
+; Input value was bigger than $val
+:= $too_big
+fetch #a
+outch
+outlf
+pgjmp $start
+; Offset by 0xa: ASCII code for "+"
+:= $too_big
+:+ #a
+#2b
+
+; Input value was smaller than $val
+:= $too_low
+fetch #a
+outch
+outlf
+pgjmp $start
+; Offset by 0xa: ASCII code for "-"
+:= $too_low
+:+ #a
+#2d
+
+; Input value is equal to $val
+:= $yay
+fetch #a
+outch
+outlf
+cease
+
+; Offset by 0xa: ASCII code for "="
+:= $yay
+:+ #a
+#3d

@@ -1,0 +1,39 @@
+; Addresses
+= old #1
+= new #2
+= oldtmp #3
+= maxval_minus_one #5
+= backup #6
+
+; Labels
+= start #a
+= loop #12
+
+; Jump to entry point
+pgjmp $start
+
+; Variable initializations
+:= $old
+#1
+:= $new
+#1
+:= $maxval_minus_one
+#fffe
+
+:= $start
+fetch $old
+write $oldtmp
+incby $new
+write $backup
+minus $maxval_minus_one
+jmpez $loop
+cease
+
+:= $loop
+fetch $backup
+write $old
+fetch $oldtmp
+write $new
+outnm
+outlf
+jmpto $start

@@ -1,0 +1,52 @@
+= hello_start #010
+= start #0a0
+
+pgjmp $start
+
+:= $hello_start
+; The string as hex ASCII
+#48
+#65
+#6c
+#6c
+#6f
+#2c
+#20
+#57
+#6f
+#72
+#6c
+#64
+#21
+#0a
+
+:= $start
+; Probably most repetitive Hello World in any language to date
+fetch #010
+outch
+fetch #011
+outch
+fetch #012
+outch
+fetch #013
+outch
+fetch #014
+outch
+fetch #015
+outch
+fetch #016
+outch
+fetch #017
+outch
+fetch #018
+outch
+fetch #019
+outch
+fetch #01a
+outch
+fetch #01b
+outch
+fetch #01c
+outch
+fetch #01d
+outch

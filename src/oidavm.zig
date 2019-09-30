@@ -64,8 +64,21 @@ pub const OidaVm = struct {
     fn exec(this: *OidaVm, word: u16) void {
         if (word >> 12 > 0 and word >> 12 < 0xa) {
             // Paged Opcodes: 0x01..0x99
-            const address: u12 = (@intCast(u12, this.page) << 8) + @truncate(u8, word);
-            switch (@intToEnum(PagedOpcode, @intCast(u8, word >> 8))) {
+            const address = (@intCast(u12, this.page) << 8) + @truncate(u8, word);
+            const opcode = @intCast(u8, word >> 8);
+            if (!enum_check(PagedOpcode, opcode)) {
+                std.debug.warn(
+                    \\
+                    \\== VM PANIC ==
+                    \\Encountered invalid opcode 0x{X:0^2} at address 0x{X:0^3}.
+                    \\== VM PANIC ==
+                    \\
+                    \\
+                , opcode, this.instruction_ptr);
+                this.dump();
+                std.process.exit(1);
+            }
+            switch (@intToEnum(PagedOpcode, opcode)) {
                 .IncrementBy => if (usize(this.accumulator) + this.memory[address] >= 65535) {
                     this.accumulator = 65535;
                 } else {
@@ -88,7 +101,20 @@ pub const OidaVm = struct {
         } else {
             // Unpaged Opcodes: 0x0000, 0xa..0xf
             const address = @truncate(u12, word);
-            switch (@intToEnum(GlobalOpcode, @intCast(u4, word >> 12))) {
+            const opcode = @intCast(u4, word >> 12);
+            if (!enum_check(GlobalOpcode, opcode)) {
+                std.debug.warn(
+                    \\
+                    \\== VM PANIC ==
+                    \\Encountered invalid opcode 0x{X} at address 0x{X:0^3}.
+                    \\== VM PANIC ==
+                    \\
+                    \\
+                , opcode, this.instruction_ptr);
+                this.dump();
+                std.process.exit(1);
+            }
+            switch (@intToEnum(GlobalOpcode, opcode)) {
                 .NoOp => return,
                 .FarFetch => this.accumulator = this.memory[address],
                 .FarWrite => this.memory[address] = this.accumulator,
@@ -96,18 +122,33 @@ pub const OidaVm = struct {
                     this.instruction_ptr = address - 1;
                     this.page = @intCast(u4, address >> 8);
                 },
-                .Extend => switch (@intToEnum(ExtendedOpcode, address)) {
-                    .Halt => return, // Handled by eval()
-                    .OutputNumeric => std.debug.warn("{}", this.accumulator),
-                    .OutputChar => std.debug.warn("{c}", @truncate(u8, this.accumulator)),
-                    .OutputLinefeed => std.debug.warn("\n"),
+                .Extend => {
+                    if (!enum_check(ExtendedOpcode, address)) {
+                        std.debug.warn(
+                            \\
+                            \\== VM PANIC ==
+                            \\Encountered invalid opcode 0xF{X:0^3} at address 0x{X:0^3}.
+                            \\== VM PANIC ==
+                            \\
+                            \\
+                        , address, this.instruction_ptr);
+                        this.dump();
+                        std.process.exit(1);
+                    }
+                    switch (@intToEnum(ExtendedOpcode, address)) {
+                        .Halt => return, // Handled by eval()
+                        .OutputNumeric => std.debug.warn("{}", this.accumulator),
+                        .OutputChar => std.debug.warn("{c}", @truncate(u8, this.accumulator)),
+                        .OutputLinefeed => std.debug.warn("\n"),
+                    }
                 },
             }
         }
     }
 
     /// Starts to evaluate memory as instructions starting at `addr`.
-    /// Invalid opcodes invoke safety-checked UB, so try to avoid them.
+    /// If the VM encounters invalid opcodes, it will exit with status 1
+    /// and dump its memory to stderr.
     fn eval(this: *OidaVm, addr: u12) void {
         this.instruction_ptr = addr;
         while (this.instruction_ptr < 4095) : (this.instruction_ptr += 1) {
@@ -157,3 +198,20 @@ pub const OidaVm = struct {
         this.memory = [_]u16{0} ** 4096;
     }
 };
+
+const builtin = @import("builtin");
+
+/// Checks if the supplied `enum_type` has a field with the value `tag`.
+fn enum_check(comptime enum_type: type, tag: usize) bool {
+    switch (@typeInfo(enum_type)) {
+        builtin.TypeId.Enum => |e| {
+            inline for (e.fields) |field| {
+                if (field.value == tag) {
+                    return true;
+                }
+            }
+            return false;
+        },
+        else => @compileError("expected enum for enum_check"),
+    }
+}

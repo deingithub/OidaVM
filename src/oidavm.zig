@@ -178,6 +178,7 @@ pub const OidaVm = struct {
                 if ((addr + 1) % 8 == 0) "\n" else "| " // If next entry is 8, 16, … print newline
             );
         }
+        if (elided) std.debug.warn(" [elided]\n");
         std.debug.warn("== end dump ==\n");
     }
 

@@ -4,6 +4,7 @@
 = val_minus_one #4
 
 ; Labels
+= init #20
 = start #a
 = maybe_yay #40
 = too_low_point #60
@@ -12,13 +13,17 @@
 = yay #300
 
 ; Jump to entry point
-pgjmp $start
+pgjmp $init
 
-; One should probably set these randomly. TODO add instruction for that
-:= $val
-#45
-:= $val_minus_one
-#44
+:= $init
+; Generate random word and shift it right by eight bits, no one wants to guess in 0-4096
+rando
+shfr4
+shfr4
+write $val
+dimin
+write $val_minus_one
+pgjmp $start
 
 := $start
 inacc

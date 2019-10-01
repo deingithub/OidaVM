@@ -185,6 +185,20 @@ fn parse_instruction(token: []const u8) !u16 {
         return 0xf000 + u16(@enumToInt(ExtendedOpcode.OutputLinefeed));
     } else if (eql(u8, token, "inacc")) {
         return 0xf000 + u16(@enumToInt(ExtendedOpcode.InputACC));
+    } else if (eql(u8, token, "rando")) {
+        return 0xf000 + u16(@enumToInt(ExtendedOpcode.Randomize));
+    } else if (eql(u8, token, "augmt")) {
+        return 0xf000 + u16(@enumToInt(ExtendedOpcode.Augment));
+    } else if (eql(u8, token, "dimin")) {
+        return 0xf000 + u16(@enumToInt(ExtendedOpcode.Diminish));
+    } else if (eql(u8, token, "shfl4")) {
+        return 0xf000 + u16(@enumToInt(ExtendedOpcode.ShiftLeftFour));
+    } else if (eql(u8, token, "shfl1")) {
+        return 0xf000 + u16(@enumToInt(ExtendedOpcode.ShiftLeftOne));
+    } else if (eql(u8, token, "shfr4")) {
+        return 0xf000 + u16(@enumToInt(ExtendedOpcode.ShiftRightFour));
+    } else if (eql(u8, token, "shfr1")) {
+        return 0xf000 + u16(@enumToInt(ExtendedOpcode.ShiftRightOne));
     }
     return error.InvalidOpcode;
 }

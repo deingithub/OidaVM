@@ -27,14 +27,14 @@ pub fn main() !void {
     var stream = &file.inStream().stream;
     try stream.readAllBuffer(&buffer, (try file.getEndPos()) + 1);
 
-    var vm = OidaVm {
-        .memory = try parser.parse(buffer.toSliceConst())
+    var vm = OidaVm{
+        .memory = try parser.parse(buffer.toSliceConst()),
+        .rng = std.rand.DefaultPrng.init(std.time.timestamp()).random,
     };
-    
+
     const entry_point = if (arguments.len != 3) 0 else try std.fmt.parseInt(u12, arguments[2], 16);
 
     vm.eval(entry_point);
-
 }
 
 fn global_instruction(comptime op: GlobalOpcode, comptime addr: u12) u16 {

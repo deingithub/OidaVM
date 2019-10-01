@@ -58,6 +58,27 @@ pub const ExtendedOpcode = enum(u12) {
 
     /// inacc — Awaits one-word input from user and writes it into ACC.
     InputACC = 0x020,
+
+    /// rando — Randomizes ACC using the default PRNG.
+    Randomize = 0x030,
+
+    /// augmt — Increase ACC by one. Overflow gets silently truncated to 65535.
+    Augment = 0x040,
+
+    /// dimin — Diminish ACC by one. Underflow gets silently truncated to 0.
+    Diminish = 0x041,
+
+    /// shfl4 — Shift ACC left by four bits.
+    ShiftLeftFour = 0x042,
+
+    /// shfr4 — Shift ACC left by four bits.
+    ShiftRightFour = 0x043,
+
+    /// shfl1 — Shift ACC left by one bit.
+    ShiftLeftOne = 0x044,
+
+    /// shfr1 — Shift ACC right by one bit.
+    ShiftRightOne = 0x045,
 };
 
 pub const OidaVm = struct {
@@ -65,6 +86,7 @@ pub const OidaVm = struct {
     accumulator: u16 = 0,
     instruction_ptr: u12 = 0,
     page: u4 = 0,
+    rng: std.rand.Random,
 
     /// Executes a single instruction
     fn exec(this: *OidaVm, word: u16) void {
@@ -129,6 +151,27 @@ pub const OidaVm = struct {
                                 const line = std.io.readLine(&buffer) catch this.vm_panic("Failed to read from STDIN");
                                 break std.fmt.parseInt(u16, buffer.toSlice(), 16) catch continue;
                             } else unreachable;
+                        },
+                        .Randomize => {
+                            this.accumulator = this.rng.int(u16);
+                        },
+                        .Augment => {
+                            if (this.accumulator < 65535) this.accumulator += 1;
+                        },
+                        .Diminish => {
+                            if (this.accumulator > 0) this.accumulator -= 1;
+                        },
+                        .ShiftLeftFour => {
+                            this.accumulator = this.accumulator << 4;
+                        },
+                        .ShiftRightFour => {
+                            this.accumulator = this.accumulator >> 4;
+                        },
+                        .ShiftLeftOne => {
+                            this.accumulator = this.accumulator << 1;
+                        },
+                        .ShiftRightOne => {
+                            this.accumulator = this.accumulator >> 1;
                         },
                     }
                 },

@@ -35,7 +35,7 @@ These can target all addresses on the current page, which represents one 16th of
 
 ### Extended opcodes (sixteen bits)
 
-These can't target memory and take no arguments, so they are either used for I/O or operations on ACC. This category has up to 4096 possible opcodes available.
+These can't target memory and take no arguments, so they are either used for I/O or operations on ACC. There are 144 possible opcodes in this category.
 
 - `0xf00f cease` *Cease*: Halts execution.
 - `0xf010 outnm` *Output, Numeric*: Writes the content of ACC to stderr, as a decimal number.
@@ -43,9 +43,9 @@ These can't target memory and take no arguments, so they are either used for I/O
 - `0xf012 outlf` *Output Linefeed*: Writes `\n` to stderr.
 - `0xf013 outhx` *Output, Hexadecimal*: Writes the content of ACC to stderr, as a hexadecimal number.
 - `0xf020 inacc` *Input To ACC*: Awaits one word of input from user and writes it into ACC.
-- `0xf030 rando` *Randomize ACC*: Write a random value (backed by the default PRNG) into ACC.
-- `0xf040 augmt` *Augment ACC*: Increase ACC by one. Overflow gets silently truncated to 65535.
-- `0xf041 dimin` *Diminish ACC*: Diminish ACC by one. Underflow gets silently truncated to 0.
+- `0xf030 rando` *Randomize ACC*: Writes a random value (backed by the default PRNG) into ACC.
+- `0xf040 augmt` *Augment ACC*: Increases ACC by one. Overflow gets silently truncated to 65535.
+- `0xf041 dimin` *Diminish ACC*: Diminishes ACC by one. Underflow gets silently truncated to 0.
 - `0xf042 shfl4` *Shift Left Four*: Shifts the value of ACC four bytes to the left.
 - `0xf043 shfr4` *Shift Right Four*: Shifts the value of ACC four bytes to the right.
 - `0xf044 shfl1` *Shift Left One*: Shifts the value of ACC one byte to the left.

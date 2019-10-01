@@ -186,8 +186,12 @@ pub const OidaVm = struct {
         this.instruction_ptr = addr;
         while (this.instruction_ptr < 4095) : (this.instruction_ptr += 1) {
             if (this.memory[this.instruction_ptr] == 0xf00f) return; // Extend-Halt opcode
-            this.exec(this.memory[this.instruction_ptr]);
+            this.step();
         }
+    }
+
+    fn step(this: *OidaVm) void {
+        this.exec(this.memory[this.instruction_ptr]);
     }
 
     /// Writes `value` to `addr` in the VM's memory.

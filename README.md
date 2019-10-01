@@ -2,6 +2,10 @@
 
 A minimal bytecode VM implemented in Zig.
 
+## Usage
+
+Run `oida run youroidasmfile` to run your program, optionally specifying an entry point in hex after the filename. To debug oidaVM programs, use the internal debugger oiDB, which you can invoke using `oida dbg youroidasmfile`. It has a GDB-*inspired* REPL and internal help accessible via `?` or `h` in oiDB.
+
 ## Specs
 
 - 4096 16-bit words of memory

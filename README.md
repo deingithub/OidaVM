@@ -4,7 +4,7 @@ A (not that, anymore) minimal bytecode VM implemented in Zig with integrated deb
 
 ## Usage
 
-Run `oida run youroidasmfile` to run your program, optionally specifying an entry point in hex after the filename. To debug oidaVM programs, use the internal debugger oiDB, which you can invoke using `oida dbg youroidasmfile`. It has a GDB-*inspired* REPL and internal help accessible via `?` or `h` in oiDB.
+Run `oida run youroidasmfile` to run your program, optionally specifying an entry point in hex after the filename. To debug oidaVM programs, use the internal debugger oiDB, which you can invoke using `oida dbg youroidasmfile`. It has a GDB-*inspired* REPL and internal help accessible via `?` or `h`.
 
 ## Specs
 
@@ -17,39 +17,39 @@ Run `oida run youroidasmfile` to run your program, optionally specifying an entr
 
 These can target the entire memory space of the VM. There are six possible opcodes in this category.
 
-- `noopr` (0x0): Skips instruction.
-- `pgjmp` (0xa): Selects highest four bits of address as page and unconditionally continues execution at address.
-- `fftch` (0xb): Copies memory value at address into ACC.
-- `fwrte` (0xc): Overwrites memory at address with copy of ACC.
+- `0x0 noopr` *No Operation*: Skips instruction.
+- `0xa pgjmp` *Page And Jump*: Selects highest four bits of address as page and unconditionally continues execution at address.
+- `0xb fftch` *Far Fetch*: Copies memory value at address into ACC.
+- `0xc fwrte` *Far Write*: Overwrites memory at address with copy of ACC.
 
 ### Paged Opcodes (eight bits)
 
 These can target all addresses on the current page, which represents one 16th of the full memory. There are 144 possible opcodes in this category.
 
-- `incby` (0x11): Adds value of address in memory to ACC. Overflow gets silently truncated to 65535.
-- `minus` (0x12): Substracts value of address in memory from ACC. Underflow gets silently truncated to 0.
-- `fetch` (0x20): Copies memory value at address into ACC.
-- `write` (0x21): Overwrites memory at address with copy of ACC.
-- `jmpto` (0x30): Unconditionally continues execution at address.
-- `jmpez` (0x31): If ACC is 0, continues execution at address, otherwise skips instruction.
+- `0x11 incby` *Increment By*: Adds value of address in memory to ACC. Overflow gets silently truncated to 65535.
+- `0x12 minus` *Minus*: Substracts value of address in memory from ACC. Underflow gets silently truncated to 0.
+- `0x20 fetch` *Fetch*: Copies memory value at address into ACC.
+- `0x21 write` *Write*: Overwrites memory at address with copy of ACC.
+- `0x30 jmpto` *Jump To*: Unconditionally continues execution at address.
+- `0x31 jmpez` *Jump If Equal To Zero*: If ACC is 0, continues execution at address, otherwise skips instruction.
 
 ### Extended opcodes (sixteen bits)
 
 These can't target memory and take no arguments, so they are either used for I/O or operations on ACC. This category has up to 4096 possible opcodes available.
 
-- `cease` (0xf00f): Halts execution.
-- `outnm` (0xf010): Writes the content of ACC to stderr, as a decimal number.
-- `outch` (0xf011): Writes the lower eight bits of ACC to stderr, as ASCII character.
-- `outlf` (0xf012): Writes `\n` to stderr.
-- `outnm` (0xf013): Writes the content of ACC to stderr, as a hexadecimal number.
-- `inacc` (0xf020): Awaits one word of input from user and writes it into ACC.
-- `rando` (0xf030): Write a random value (backed by the default PRNG) into ACC.
-- `augmt` (0xf040): Increase ACC by one. Overflow gets silently truncated to 65535.
-- `dimin` (0xf041): Diminish ACC by one. Underflow gets silently truncated to 0.
-- `shfl4` (0xf042): Shifts the value of ACC four bytes to the left.
-- `shfr4` (0xf043): Shifts the value of ACC four bytes to the right.
-- `shfl1` (0xf044): Shifts the value of ACC one byte to the left.
-- `shfr1` (0xf045): Shifts the value of ACC one byte to the right.
+- `0xf00f cease` *Cease*: Halts execution.
+- `0xf010 outnm` *Output, Numeric*: Writes the content of ACC to stderr, as a decimal number.
+- `0xf011 outch` *Output, Character*: Writes the lower eight bits of ACC to stderr, as ASCII character.
+- `0xf012 outlf` *Output Linefeed*: Writes `\n` to stderr.
+- `0xf013 outhx` *Output, Hexadecimal*: Writes the content of ACC to stderr, as a hexadecimal number.
+- `0xf020 inacc` *Input To ACC*: Awaits one word of input from user and writes it into ACC.
+- `0xf030 rando` *Randomize ACC*: Write a random value (backed by the default PRNG) into ACC.
+- `0xf040 augmt` *Augment ACC*: Increase ACC by one. Overflow gets silently truncated to 65535.
+- `0xf041 dimin` *Diminish ACC*: Diminish ACC by one. Underflow gets silently truncated to 0.
+- `0xf042 shfl4` *Shift Left Four*: Shifts the value of ACC four bytes to the left.
+- `0xf043 shfr4` *Shift Right Four*: Shifts the value of ACC four bytes to the right.
+- `0xf044 shfl1` *Shift Left One*: Shifts the value of ACC one byte to the left.
+- `0xf045 shfr1` *Shift Right One*: Shifts the value of ACC one byte to the right.
 
 ## oidASM
 

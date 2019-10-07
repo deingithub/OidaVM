@@ -79,6 +79,7 @@ pub fn assemble(code: []const u8) ![4096]u16 {
                     .addr = null,
                 })) |_| {
                     warn("{}: Redefinition of variable {}\n", line_number, variable_name);
+                    had_errors = true;
                 } else continue;
             },
             ':' => { // Instruction blocks/labels

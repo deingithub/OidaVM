@@ -1,39 +1,26 @@
-; Addresses
-= old #1
-= new #2
-= oldtmp #3
-= maxval_minus_one #5
-= backup #6
+@entry :start
+@page 0
 
-; Labels
-= start #a
-= loop #12
+$old 1
+$new 1
+$oldtmp 0
+$maxval_minus_one fffe
+$backup 0
 
-; Jump to entry point
-pgjmp $start
-
-; Variable initializations
-:= $old
-#1
-:= $new
-#1
-:= $maxval_minus_one
-#fffe
-
-:= $start
+:start
 fetch $old
 write $oldtmp
 incby $new
 write $backup
 minus $maxval_minus_one
-jmpez $loop
+jmpez :loop
 cease
 
-:= $loop
+:loop
 fetch $backup
 write $old
 fetch $oldtmp
 write $new
 outnm
 outlf
-jmpto $start
+jmpto :start

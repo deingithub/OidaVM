@@ -1,52 +1,41 @@
-= hello_start #010
-= start #0a0
+@page 0
+@entry :hello
 
-pgjmp $start
+$H 48
+$e 65
+$l 6c
+$o 6f
+$comma 2c
+$space 20
+$W 57
+$r 72
+$d 64
+$exclamation 21
 
-:= $hello_start
-; The string as hex ASCII
-#48
-#65
-#6c
-#6c
-#6f
-#2c
-#20
-#57
-#6f
-#72
-#6c
-#64
-#21
-#0a
-
-:= $start
-; Probably most repetitive Hello World in any language to date
-fetch #010
+:hello
+fetch $H
 outch
-fetch #011
+fetch $e
 outch
-fetch #012
+fetch $l
 outch
-fetch #013
 outch
-fetch #014
+fetch $o
 outch
-fetch #015
+fetch $comma
 outch
-fetch #016
+fetch $space
 outch
-fetch #017
+fetch $W
 outch
-fetch #018
+fetch $o
 outch
-fetch #019
+fetch $r
 outch
-fetch #01a
+fetch $l
 outch
-fetch #01b
+fetch $d
 outch
-fetch #01c
+fetch $exclamation
 outch
-fetch #01d
-outch
+outlf

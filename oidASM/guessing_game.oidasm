@@ -1,78 +1,60 @@
-; Addresses
-= backup #2
-= val #3
-= val_minus_one #4
+@entry :init
+$backup 0
+$val 0
+$val_minus_one 0
 
-; Labels
-= init #20
-= start #a
-= maybe_yay #40
-= too_low_point #60
-= too_low #100
-= too_big #200
-= yay #300
-
-; Jump to entry point
-pgjmp $init
-
-:= $init
-; Generate random word and shift it right by eight bits, no one wants to guess in 0-4096
+# Generate random word and shift it right by eight bits, no one wants to guess in 0-4096
+@page 0
+:init
 rando
 shfr4
 shfr4
 write $val
 dimin
 write $val_minus_one
-pgjmp $start
+pgjmp :start
 
-:= $start
+:start
 inacc
 write $backup
 minus $val
-jmpez $maybe_yay
-pgjmp $too_big
+jmpez :maybe_yay
+pgjmp :too_big
 
-; Either correct or too low
-:= $maybe_yay
+# Either correct or too low
+:maybe_yay
 fetch $backup
 minus $val_minus_one
-jmpez $too_low_point
-pgjmp $yay
+jmpez :too_low_point
+pgjmp :yay
 
-; PageAndJump to toolow
-:= $too_low_point
-pgjmp $too_low
+# PageAndJump to toolow
+:too_low_point
+pgjmp :too_low
 
-; Input value was bigger than $val
-:= $too_big
-fetch #a
+# Input value was bigger than $val
+@page 1
+$plus 2b
+:too_big
+fetch $plus
 outch
 outlf
-pgjmp $start
-; Offset by 0xa: ASCII code for "+"
-:= $too_big
-:+ #a
-#2b
+pgjmp :start
 
-; Input value was smaller than $val
-:= $too_low
-fetch #a
+# Input value was smaller than $val
+@page 2
+$minus 2d
+:too_low
+fetch $minus
 outch
 outlf
-pgjmp $start
-; Offset by 0xa: ASCII code for "-"
-:= $too_low
-:+ #a
-#2d
+pgjmp :start
 
-; Input value is equal to $val
-:= $yay
-fetch #a
+# Input value is equal to $val
+@page 3
+$eql 3d
+:yay
+fetch $eql
 outch
 outlf
 cease
-
-; Offset by 0xa: ASCII code for "="
-:= $yay
-:+ #a
-#3d

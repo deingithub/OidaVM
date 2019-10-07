@@ -1,31 +1,20 @@
-; Addresses
-= ninetynine #1
-= one #2
-= counter #3
+@entry :start
 
-; Labels
-= start #a
-= loop #20
+@page 0
+  $ninetynine 63
+  $one 1
+  $counter 0
 
-; Jump to entry point
-pgjmp $start
+  :start 
+    incby $one
+    write $counter
+    minus $ninetynine
+    jmpez :loop
+    fetch $counter
+    outnm
+    outlf
+    cease
 
-; Constants
-:= $one
-#1
-:= $ninetynine
-#63
-
-:= $start
-incby $one
-write $counter
-minus $ninetynine
-jmpez $loop
-fetch $counter
-outnm
-outlf
-cease
-
-:= $loop
-fetch $counter
-jmpto $start
+  :loop
+    fetch $counter
+    jmpto :start

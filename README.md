@@ -53,13 +53,9 @@ These can't target memory and take no arguments, so they are either used for I/O
 
 ## oidASM
 
-**OIDASM IS PENDING REVISION TO MAKE IT LESS HORRIBLE.**  
-oidASM is a relatively-easy-to-write textual representation of the machine's memory. It's tokenized per-line, so you need to be aware of the line types:
-
-- Comment lines are ignored wholly and start with `;`. Blank lines are ignored similarly.
-- Name assignment lines assign a name to an address and follow the syntax `= identifier_here #123`.
-- Cursor lines set the position of the parser's cursor, i.e. where the next expression line will be placed inside the VM's memory. They take the form of `:= [address]`, `:+ [offset]` or `:- [offset]`, where `[address]`/`[offset]` are either a `$name` or a bare address `#123`.
-- Expression lines evaluate to a single word that gets placed in the VM's memory according to the cursor's current position. They either are a bare `#1234` u16 value or a five-letter opcode mnemonic optionally followed by an address, like this: `outnm`, `jmpto $addr` or `fetch #f00`. Every parsed expression line increases the cursor by one. Other lines do not increase the cursor. The cursor starts at `0x000`.
+oidASM is the assembly language for OidaVM. It has five fundamental elements: Directives, Variable Definitions, Blocks, Instructions and Comments. Each element takes up one line. Comments start with `#` and are ignored by the assembler. Directives start with `@` and pass metadata to the assembler. Variable definitions start with `$` and bind a value to a symbol for later reference. Blocks start with `:` and delineate sections of the program that can be jumped to. Instructions appear after a block marker and consist of a five-char mnemonic and optionally an address (either as `$variable` or `:block`).  
+Each program needs at least a `@entry` directive to set the entry point of the program to a block and one block to execute.  
+The `@page` directive sets the current working page of the assembler. If no directive is specified, the assembler assumes page `0`.
 
 For some examples, look into the oidASM/ folder.
 

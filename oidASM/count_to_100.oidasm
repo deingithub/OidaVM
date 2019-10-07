@@ -1,20 +1,20 @@
 @entry :start
 
 @page 0
-  $ninetynine 63
-  $one 1
-  $counter 0
+$ninetynine 63
+$one 1
+$counter 0
 
-  :start 
-    incby $one
-    write $counter
-    minus $ninetynine
-    jmpez :loop
-    fetch $counter
-    outnm
-    outlf
-    cease
+:start 
+  incby $one
+  write $counter
+  minus $ninetynine
+  jmpez :loop
+  fetch $counter
+  outnm
+  outlf
+  cease
 
-  :loop
-    fetch $counter
-    jmpto :start
+:loop
+  fetch $counter
+  jmpto :start

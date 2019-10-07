@@ -8,19 +8,19 @@ $maxval_minus_one fffe
 $backup 0
 
 :start
-fetch $old
-write $oldtmp
-incby $new
-write $backup
-minus $maxval_minus_one
-jmpez :loop
-cease
+  fetch $old
+  write $oldtmp
+  incby $new
+  write $backup
+  minus $maxval_minus_one
+  jmpez :loop
+  cease
 
 :loop
-fetch $backup
-write $old
-fetch $oldtmp
-write $new
-outnm
-outlf
-jmpto :start
+  fetch $backup
+  write $old
+  fetch $oldtmp
+  write $new
+  outnm
+  outlf
+  jmpto :start

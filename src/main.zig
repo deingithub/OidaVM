@@ -37,9 +37,11 @@ pub fn main() !void {
     var stream = &file.inStream().stream;
     try stream.readAllBuffer(&buffer, (try file.getEndPos()) + 1);
 
+    var timestamp = std.time.timestamp();
+
     var vm = OidaVm{
-        .memory = try parser.parse(buffer.toSliceConst()),
-        .rng = std.rand.DefaultPrng.init(std.time.timestamp()).random,
+        .memory = try parser.assemble(buffer.toSliceConst()),
+        .rng = std.rand.DefaultPrng.init(timestamp).random,
     };
 
     // Just run the program and exit

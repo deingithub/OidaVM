@@ -1,150 +1,231 @@
 const std = @import("std");
+const warn = std.debug.warn;
 
-pub fn parse(code: []const u8) ![4096]u16 {
+const InstructionBlock = struct {
+    instructions: std.ArrayList(Instruction),
+    page: u4,
+    addr: ?u12,
+};
+
+const Instruction = struct {
+    opcode: []const u8,
+    address: ?[]const u8,
+};
+
+const VariableDef = struct {
+    value: u16,
+    page: u4,
+    addr: ?u12,
+};
+
+pub fn assemble(code: []const u8) ![4096]u16 {
     var allocator = std.heap.ArenaAllocator.init(std.heap.direct_allocator);
     defer allocator.deinit();
     const alloc = &allocator.allocator;
-
-    var cursor: u12 = 0;
-    var memory = [_]u16{0} ** 4096;
-
-    var line_no: usize = 1;
     var had_errors = false;
-    var name_map = std.BufMap.init(alloc);
 
+    var entry_point: ?[]const u8 = null;
+    var current_page: u4 = 0;
+    var vardefs = std.StringHashMap(VariableDef).init(alloc);
+    var blocks = std.StringHashMap(InstructionBlock).init(alloc);
+    var current_block: ?InstructionBlock = null;
+    var current_block_name: ?[]const u8 = null;
+
+    // Parsing stage
+    var line_number: usize = 1;
     var lines = std.mem.separate(code, "\n");
-    while (lines.next()) |line| : (line_no += 1) {
-        if (line.len == 0) continue;
-        switch (line[0]) {
-            // Comments
-            ';' => continue,
-            // Name Definition
-            '=' => {
-                var tokens = std.mem.tokenize(line, " ");
-                _ = tokens.next();
-                if (tokens.next()) |name| {
-                    if (tokens.next()) |value| {
-                        try name_map.set(name, value);
-                    } else {
-                        std.debug.warn("Missing value in line {}\n", line_no);
+    while (lines.next()) |line| : (line_number += 1) {
+        var tokens = std.mem.tokenize(line, " ");
+        const first_token = tokens.next() orelse continue; // Skip empty lines
+        switch (first_token[0]) {
+            '#' => continue, // Skip comment lines
+            '@' => { // Parser Directives
+                if (std.mem.eql(u8, first_token, "@page")) {
+                    // Set memory page
+                    const page_token = tokens.next() orelse {
+                        warn("{}: Missing page number\n", line_number);
                         had_errors = true;
-                    }
+                        continue;
+                    };
+                    current_page = std.fmt.parseInt(u4, page_token, 16) catch {
+                        warn("{}: Invalid page number {}\n", line_number, page_token);
+                        had_errors = true;
+                        continue;
+                    };
+                } else if (std.mem.eql(u8, first_token, "@entry")) {
+                    // Set entry point label
+                    const label_token = tokens.next() orelse {
+                        warn("{}: Missing entry point label\n", line_number);
+                        had_errors = true;
+                        continue;
+                    };
+                    entry_point = label_token;
                 } else {
-                    std.debug.warn("Missing name in line {}\n", line_no);
+                    warn("{}: Unknown directive {}\n", line_number, first_token);
                     had_errors = true;
                 }
             },
-            // Cursor operation
-            ':' => {
-                var tokens = std.mem.tokenize(line, " ");
-                if (tokens.next()) |op_kind| {
-                    if (op_kind.len != 2) {
-                        std.debug.warn("Malformed cursor operation in line {}\n", line_no);
-                        had_errors = true;
-                    }
-                    switch (op_kind[1]) {
-                        '=' => {
-                            if (tokens.next()) |addr| {
-                                cursor = to_address(addr, &name_map) catch |e| {
-                                    std.debug.warn("Failed to parse address in line {}: {}\n", line_no, e);
-                                    had_errors = true;
-                                    continue;
-                                };
-                            } else {
-                                std.debug.warn("Missing cursor position in line {}\n", line_no);
-                                had_errors = true;
-                            }
-                        },
-                        '+' => {
-                            if (tokens.next()) |addr| {
-                                cursor += to_address(addr, &name_map) catch |e| {
-                                    std.debug.warn("Failed to parse address in line {}: {}\n", line_no, e);
-                                    had_errors = true;
-                                    continue;
-                                };
-                            } else {
-                                std.debug.warn("Missing cursor position in line {}\n", line_no);
-                                had_errors = true;
-                            }
-                        },
-                        '-' => {
-                            if (tokens.next()) |addr| {
-                                cursor -= to_address(addr, &name_map) catch |e| {
-                                    std.debug.warn("Failed to parse address in line {}: {}\n", line_no, e);
-                                    had_errors = true;
-                                    continue;
-                                };
-                            } else {
-                                std.debug.warn("Missing cursor position in line {}\n", line_no);
-                                had_errors = true;
-                            }
-                        },
-                        else => {
-                            std.debug.warn("Unknown cursor operation in line {}\n", line_no);
-                            had_errors = true;
-                        },
-                    }
-                } else unreachable;
+            '$' => { // Variable Definitions
+                const variable_name = first_token;
+                const value_token = tokens.next() orelse "0";
+                const value = std.fmt.parseInt(u16, value_token, 16) catch {
+                    warn("{}: Invalid variable value {}\n", line_number, value_token);
+                    had_errors = true;
+                    continue;
+                };
+                if (try vardefs.put(variable_name, VariableDef{
+                    .value = value,
+                    .page = current_page,
+                    .addr = null,
+                })) |_| {
+                    warn("{}: Redefinition of variable {}\n", line_number, variable_name);
+                } else continue;
             },
-            // Instruction or raw data
+            ':' => { // Instruction blocks/labels
+                if (current_block) |block| {
+                    // Save current block into ArrayList
+                    // Both current_block_name and block have been set because this is at least the second block
+                    // Also, duplicate blocks are checked during creation below, so assert there's no double
+                    std.debug.assert((try blocks.put(current_block_name.?, block)) == null);
+                }
+                if (first_token.len < 2) {
+                    warn("{}: Missing block name\n", line_number);
+                    had_errors = true;
+                    continue;
+                }
+                if (blocks.contains(first_token)) {
+                    warn("{}: Redefinition of block {}\n", line_number, first_token);
+                    had_errors = true;
+                    continue;
+                }
+                current_block = InstructionBlock{
+                    .instructions = std.ArrayList(Instruction).init(alloc),
+                    .page = current_page,
+                    .addr = null,
+                };
+                current_block_name = first_token;
+            },
             else => {
-                var tokens = std.mem.tokenize(line, " ");
-                if (tokens.next()) |token| {
-                    switch (token[0]) {
-                        // A word of raw data
-                        '#' => memory[cursor] = std.fmt.parseInt(u16, token[1..], 16) catch {
-                            std.debug.warn("Failed to parse raw data \"{}\" in line {}", token, line_no);
-                            had_errors = true;
-                            continue;
-                        },
-                        // Instruction mnemonic
-                        else => {
-                            if (token.len != 5) {
-                                std.debug.warn("Malformed instruction \"{}\" in line {}\n", token, line_no);
-                                had_errors = true;
-                                continue;
-                            }
-                            const instruction = parse_instruction(token) catch {
-                                std.debug.warn("Unknown instruction \"{}\" in line {}\n", token, line_no);
-                                had_errors = true;
-                                continue;
-                            };
-                            if (tokens.next()) |addr| {
-                                memory[cursor] = instruction + (to_address(addr, &name_map) catch |e| {
-                                    std.debug.warn("Failed to parse address in line {}: {}\n", line_no, e);
-                                    had_errors = true;
-                                    continue;
-                                });
-                            } else {
-                                memory[cursor] = instruction;
-                            }
-                        },
-                    }
-                } else unreachable;
-                cursor += 1;
+                if (first_token.len != 5) {
+                    warn("{}: Malformed instruction {}", line_number, first_token);
+                    had_errors = true;
+                    continue;
+                }
+                if (current_block != null) {
+                    // We can't use if-optional syntax here.
+                    // TODO find out why exactly the compiler complains
+                    try current_block.?.instructions.append(Instruction{
+                        .opcode = first_token,
+                        .address = tokens.next(),
+                    });
+                } else {
+                    warn("{}: Instruction outside block\n", line_number);
+                    had_errors = true;
+                    continue;
+                }
             },
         }
     }
-    return if (had_errors) error.ParserFailure else memory;
-}
 
-const AddressParseError = error{
-    InvalidSigil,
-    InvalidToken,
-    UnknownName,
-    InvalidAddress,
-};
-
-fn to_address(token: []const u8, names: *std.BufMap) AddressParseError!u12 {
-    if (token.len < 2) {
-        std.debug.warn("Invalid token \"{}\"", token);
-        return error.InvalidToken;
+    // Save last open block into ArrayList
+    if (current_block == null or current_block_name == null) {
+        warn("{}: Missing any instruction block\n", line_number);
+        had_errors = true;
+    } else {
+        std.debug.assert((try blocks.put(current_block_name.?, current_block.?)) == null);
     }
-    return switch (token[0]) {
-        '$' => to_address(names.get(token[1..]) orelse return error.UnknownName, names),
-        '#' => std.fmt.parseInt(u12, token[1..], 16) catch return error.InvalidAddress,
-        else => error.InvalidSigil,
-    };
+
+    // Codegen stage
+    var memory = [_]u16{0} ** 4096;
+
+    var page: u4 = 0;
+
+    // Iterate through all vardefs and blocks per-page and give them addresses
+    while (page < 15) : (page += 1) {
+        // On page 0, reserve the first instruction for the entry point
+        var in_page_cursor: usize = if (page == 0) usize(1) else 0;
+        var var_it = vardefs.iterator();
+        while (var_it.next()) |vardef| {
+            if (vardef.value.page != page) continue;
+            vardef.value.addr = (u12(page) << 8) + @truncate(u12, in_page_cursor);
+            in_page_cursor += 1;
+        }
+        var block_it = blocks.iterator();
+        while (block_it.next()) |block| {
+            if (block.value.page != page) continue;
+            block.value.addr = (u12(page) << 8) + @truncate(u12, in_page_cursor);
+            in_page_cursor += block.value.instructions.count();
+        }
+        if (in_page_cursor > 255) {
+            warn("Page {} is too full [{}/256]\n", page, in_page_cursor);
+            had_errors = true;
+            continue;
+        }
+    }
+
+    // Commit vardefs into memory
+    var var_iter = vardefs.iterator();
+    while (var_iter.next()) |vardef| {
+        memory[vardef.value.addr orelse unreachable] = vardef.value.value;
+    }
+
+    // Commit blocks into memory
+    var block_iter = blocks.iterator();
+    while (block_iter.next()) |block| {
+        var instruction_iter = block.value.instructions.iterator();
+        var index: usize = 0;
+        while (instruction_iter.next()) |instruction| : (index += 1) {
+            const opcode = parse_instruction(instruction.opcode) catch {
+                warn("Encountered invalid opcode {}\n", instruction);
+                had_errors = true;
+                continue;
+            };
+            var word: u16 = opcode;
+            const truncate_address = (word >= 0x1000 and word <= 0x9fff);
+            if (instruction.address) |address| {
+                if (word >= 0xf000) {
+                    warn("Encountered extended opcode {} with address\n", instruction.opcode);
+                    had_errors = true;
+                }
+                switch (address[0]) {
+                    '$' => {
+                        const var_ref = vardefs.getValue(address) orelse {
+                            warn("Encountered unknown variable {}\n", address);
+                            had_errors = true;
+                            continue;
+                        };
+                        word += if (truncate_address) @truncate(u8, (var_ref.addr orelse unreachable)) else (var_ref.addr orelse unreachable);
+                    },
+                    ':' => {
+                        const block_ref = blocks.getValue(address) orelse {
+                            warn("Encountered unknown label {}\n", address);
+                            had_errors = true;
+                            continue;
+                        };
+                        word += if (truncate_address) @truncate(u8, (block_ref.addr orelse unreachable)) else (block_ref.addr orelse unreachable);
+                    },
+                    else => {
+                        warn("Encountered malformed address {}\n", address);
+                        had_errors = true;
+                    },
+                }
+            }
+            memory[(block.value.addr orelse unreachable) + index] = word;
+        }
+    }
+
+    if (entry_point == null) {
+        warn("No entry point found\n");
+        had_errors = true;
+        return error.ParserFailure;
+    } else if (!blocks.contains(entry_point.?)) {
+        warn("Unknown entry point label {}\n", entry_point);
+        had_errors = true;
+        return error.ParserFailure;
+    }
+    memory[0] = (u16(@enumToInt(GlobalOpcode.PageAndJump)) << 12) + blocks.getValue(entry_point.?).?.addr.?;
+
+    return if (had_errors) error.ParserFailure else memory;
 }
 
 usingnamespace @import("oidavm.zig");

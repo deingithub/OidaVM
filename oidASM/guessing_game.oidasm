@@ -1,36 +1,27 @@
 @entry :init
 @page 0
-$backup 0
 $val 0
-$val_minus_one 0
 
 # Generate random word and shift it right by eight bits, no one wants to guess in 0-4096
+# Also, if a zero is rolled, start over.
 :init
   rando
   shfr4
   shfr4
   write $val
-  dimin
-  write $val_minus_one
-  pgjmp :start
+  jmpez :init
+  jmpto :start
 
 :start
   inacc
-  write $backup
   minus $val
-  jmpez :maybe_yay
+  pgjmp :too_low
+  jmpez :yay_point
   pgjmp :too_big
 
-# Either correct or too low
-:maybe_yay
-  fetch $backup
-  minus $val_minus_one
-  jmpez :too_low_point
+# PageAndJump to yay
+:yay_point
   pgjmp :yay
-
-# PageAndJump to toolow
-:too_low_point
-  pgjmp :too_low
 
 # Input value was bigger than $val
 @page 1

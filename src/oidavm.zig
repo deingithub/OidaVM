@@ -102,9 +102,11 @@ pub const OidaVm = struct {
                     this.accumulator = 65535;
                 } else {
                     this.accumulator += this.memory[address];
+                    this.instruction_ptr += 1;
                 },
                 .Minus => if (this.accumulator >= this.memory[address]) {
                     this.accumulator -= this.memory[address];
+                    this.instruction_ptr += 1;
                 } else {
                     this.accumulator = 0;
                 },
@@ -156,10 +158,16 @@ pub const OidaVm = struct {
                             this.accumulator = this.rng.int(u16);
                         },
                         .Augment => {
-                            if (this.accumulator < 65535) this.accumulator += 1;
+                            if (this.accumulator < 65535) {
+                                this.accumulator += 1;
+                                this.instruction_ptr += 1;
+                            }
                         },
                         .Diminish => {
-                            if (this.accumulator > 0) this.accumulator -= 1;
+                            if (this.accumulator > 0) {
+                                this.accumulator -= 1;
+                                this.instruction_ptr += 1;
+                            }
                         },
                         .ShiftLeftFour => {
                             this.accumulator = this.accumulator << 4;

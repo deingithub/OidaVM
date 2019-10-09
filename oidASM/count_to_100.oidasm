@@ -1,19 +1,19 @@
 @entry :start
 
 @page 0
-$ninetynine 63
+$target 64
 $one 1
 $counter 0
 
 :start 
   incby $one
+  noopr
   write $counter
-  minus $ninetynine
-  jmpez :loop
+  minus $target
+  jmpto :loop
   fetch $counter
   outnm
   outlf
-  cease
 
 :loop
   fetch $counter

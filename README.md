@@ -26,8 +26,8 @@ These can target the entire memory space of the VM. There are six possible opcod
 
 These can target all addresses on the current page, which represents one 16th of the full memory. There are 144 possible opcodes in this category.
 
-- `0x11 incby` *Increment By*: Adds value of address in memory to ACC. Overflow gets silently truncated to 65535.
-- `0x12 minus` *Minus*: Substracts value of address in memory from ACC. Underflow gets silently truncated to 0.
+- `0x11 incby` *Increment By*: Adds value of address in memory to ACC. Overflow gets truncated to 65535; if no overflow occurs the next instruction is skipped.
+- `0x12 minus` *Minus*: Substracts value of address in memory from ACC. Underflow gets truncated to 0; if no overflow occurs the next instruction is skipped.
 - `0x20 fetch` *Fetch*: Copies memory value at address into ACC.
 - `0x21 write` *Write*: Overwrites memory at address with copy of ACC.
 - `0x30 jmpto` *Jump To*: Unconditionally continues execution at address.
@@ -44,8 +44,8 @@ These can't target memory and take no arguments, so they are either used for I/O
 - `0xf013 outhx` *Output, Hexadecimal*: Writes the content of ACC to stderr, as a hexadecimal number.
 - `0xf020 inacc` *Input To ACC*: Awaits one word of input from user and writes it into ACC.
 - `0xf030 rando` *Randomize ACC*: Writes a random value (backed by the default PRNG) into ACC.
-- `0xf040 augmt` *Augment ACC*: Increases ACC by one. Overflow gets silently truncated to 65535.
-- `0xf041 dimin` *Diminish ACC*: Diminishes ACC by one. Underflow gets silently truncated to 0.
+- `0xf040 augmt` *Augment ACC*: Increases ACC by one. Overflow gets truncated to 65535; if no overflow occurs the next instruction is skipped.
+- `0xf041 dimin` *Diminish ACC*: Diminishes ACC by one. Underflow gets truncated to 0; if no underflow occurs the next instruction is skipped.
 - `0xf042 shfl4` *Shift Left Four*: Shifts the value of ACC four bytes to the left.
 - `0xf043 shfr4` *Shift Right Four*: Shifts the value of ACC four bytes to the right.
 - `0xf044 shfl1` *Shift Left One*: Shifts the value of ACC one byte to the left.

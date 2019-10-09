@@ -4,20 +4,15 @@
 $old 1
 $new 1
 $oldtmp 0
-$maxval_minus_one fffe
-$backup 0
 
 :start
   fetch $old
   write $oldtmp
   incby $new
-  write $backup
-  minus $maxval_minus_one
-  jmpez :loop
   cease
+  jmpto :loop
 
 :loop
-  fetch $backup
   write $old
   fetch $oldtmp
   write $new

@@ -258,15 +258,10 @@ const builtin = @import("builtin");
 
 /// Checks if the supplied `enum_type` has a field with the value `tag`.
 fn enum_check(comptime enum_type: type, tag: usize) bool {
-    switch (@typeInfo(enum_type)) {
-        builtin.TypeId.Enum => |e| {
-            inline for (e.fields) |field| {
-                if (field.value == tag) {
-                    return true;
-                }
-            }
-            return false;
-        },
-        else => @compileError("expected enum for enum_check"),
+    inline for (@typeInfo(enum_type).Enum.fields) |field| {
+        if (field.value == tag) {
+            return true;
+        }
     }
+    return false;
 }

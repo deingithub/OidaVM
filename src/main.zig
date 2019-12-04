@@ -39,7 +39,7 @@ pub fn main() !void {
 
     var timestamp = std.time.timestamp();
 
-    var vm = OidaVm{
+    var vm: OidaVm = .{
         .memory = try parser.assemble(buffer.toSliceConst()),
         .rng = std.rand.DefaultPrng.init(timestamp).random,
     };

@@ -92,53 +92,53 @@ pub const OidaVm = struct {
     fn exec(this: *OidaVm, word: u16) void {
         if (word >> 12 > 0 and word >> 12 < 0xa) {
             // Paged Opcodes: 0x01..0x99
-            const address = (@intCast(u12, this.page) << 8) + @truncate(u8, word);
+            const global_address = (@as(u12, this.page) << 8) + @truncate(u8, word);
             const opcode = @intCast(u8, word >> 8);
             if (!enum_check(PagedOpcode, opcode)) {
                 this.vm_panic("Encountered invalid opcode 0x{X:0^2} at address 0x{X:0^3}.", opcode, this.instruction_ptr);
             }
             switch (@intToEnum(PagedOpcode, opcode)) {
-                .IncrementBy => if (usize(this.accumulator) + this.memory[address] >= 65535) {
+                .IncrementBy => if (@as(usize, this.accumulator) + this.memory[global_address] >= 65535) {
                     this.accumulator = 65535;
                 } else {
-                    this.accumulator += this.memory[address];
+                    this.accumulator += this.memory[global_address];
                     this.instruction_ptr += 1;
                 },
-                .Minus => if (this.accumulator >= this.memory[address]) {
-                    this.accumulator -= this.memory[address];
+                .Minus => if (this.accumulator >= this.memory[global_address]) {
+                    this.accumulator -= this.memory[global_address];
                     this.instruction_ptr += 1;
                 } else {
                     this.accumulator = 0;
                 },
-                .Fetch => this.accumulator = this.memory[address],
-                .Write => this.memory[address] = this.accumulator,
-                .Jump => this.instruction_ptr = address - 1,
+                .Fetch => this.accumulator = this.memory[global_address],
+                .Write => this.memory[global_address] = this.accumulator,
+                .Jump => this.instruction_ptr = global_address - 1,
                 .JumpEZ => if (this.accumulator == 0) {
-                    this.instruction_ptr = address - 1;
+                    this.instruction_ptr = global_address - 1;
                 } else {
                     return;
                 },
             }
         } else {
             // Unpaged Opcodes: 0x0000, 0xa..0xf
-            const address = @truncate(u12, word);
+            const global_address = @truncate(u12, word);
             const opcode = @intCast(u4, word >> 12);
             if (!enum_check(GlobalOpcode, opcode)) {
                 this.vm_panic("Encountered invalid opcode 0x{X} at address 0x{X:0^3}.", opcode, this.instruction_ptr);
             }
             switch (@intToEnum(GlobalOpcode, opcode)) {
                 .NoOp => return,
-                .FarFetch => this.accumulator = this.memory[address],
-                .FarWrite => this.memory[address] = this.accumulator,
+                .FarFetch => this.accumulator = this.memory[global_address],
+                .FarWrite => this.memory[global_address] = this.accumulator,
                 .PageAndJump => {
-                    this.instruction_ptr = address - 1;
-                    this.page = @intCast(u4, address >> 8);
+                    this.instruction_ptr = global_address - 1;
+                    this.page = @intCast(u4, global_address >> 8);
                 },
                 .Extend => {
-                    if (!enum_check(ExtendedOpcode, address)) {
-                        this.vm_panic("Encountered invalid opcode 0xF{X:0^3} at address 0x{X:0^3}.", address, this.instruction_ptr);
+                    if (!enum_check(ExtendedOpcode, global_address)) {
+                        this.vm_panic("Encountered invalid opcode 0xF{X:0^3} at address 0x{X:0^3}.", global_address, this.instruction_ptr);
                     }
-                    switch (@intToEnum(ExtendedOpcode, address)) {
+                    switch (@intToEnum(ExtendedOpcode, global_address)) {
                         .Halt => return, // Handled by eval()
                         .OutputNumeric => std.debug.warn("{}", this.accumulator),
                         .OutputChar => std.debug.warn("{c}", @truncate(u8, this.accumulator)),
@@ -212,14 +212,14 @@ pub const OidaVm = struct {
         std.debug.warn("== OidaVM dump ==\n");
         std.debug.warn("Instruction Pointer: 0x{X:0^3}\n", this.instruction_ptr);
         std.debug.warn("Accumulator: 0x{X:0^4}\n", this.accumulator);
-        std.debug.warn("Page {X} [{X:0^3}..{X:0^3}]\n", this.page, this.page * u16(256), this.page * u16(256) + 255);
+        std.debug.warn("Page {X} [{X:0^3}..{X:0^3}]\n", this.page, this.page * @as(u16, 256), this.page * @as(u16, 256) + 255);
 
         var elided = false;
         std.debug.warn("Memory: \n");
         for (this.memory) |val, addr| {
             // Check if this row is entirely made up of zeroes, if yes, skip it
             const row_start = addr - addr % 8;
-            if (std.mem.eql(u16, this.memory[row_start .. row_start + 8], [_]u16{0} ** 8)) {
+            if (std.mem.eql(u16, this.memory[row_start .. row_start + 8], &[_]u16{0} ** 8)) {
                 elided = true;
                 continue;
             }

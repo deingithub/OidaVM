@@ -73,21 +73,23 @@ pub fn assemble(code: []const u8) ![4096]u16 {
                     had_errors = true;
                     continue;
                 };
-                if (try vardefs.put(variable_name, VariableDef{
+                if (vardefs.contains(variable_name)) {
+                    warn("{}: Redefinition of variable {}\n", line_number, variable_name);
+                    had_errors = true;
+                    continue;
+                }
+                try vardefs.putNoClobber(variable_name, .{
                     .value = value,
                     .page = current_page,
                     .addr = null,
-                })) |_| {
-                    warn("{}: Redefinition of variable {}\n", line_number, variable_name);
-                    had_errors = true;
-                } else continue;
+                });
             },
             ':' => { // Instruction blocks/labels
                 if (current_block) |block| {
                     // Save current block into ArrayList
                     // Both current_block_name and block have been set because this is at least the second block
                     // Also, duplicate blocks are checked during creation below, so assert there's no double
-                    std.debug.assert((try blocks.put(current_block_name.?, block)) == null);
+                    try blocks.putNoClobber(current_block_name.?, block);
                 }
                 if (first_token.len < 2) {
                     warn("{}: Missing block name\n", line_number);
@@ -99,7 +101,7 @@ pub fn assemble(code: []const u8) ![4096]u16 {
                     had_errors = true;
                     continue;
                 }
-                current_block = InstructionBlock{
+                current_block = .{
                     .instructions = std.ArrayList(Instruction).init(alloc),
                     .page = current_page,
                     .addr = null,
@@ -115,7 +117,7 @@ pub fn assemble(code: []const u8) ![4096]u16 {
                 if (current_block != null) {
                     // We can't use if-optional syntax here.
                     // TODO find out why exactly the compiler complains
-                    try current_block.?.instructions.append(Instruction{
+                    try current_block.?.instructions.append(.{
                         .opcode = first_token,
                         .address = tokens.next(),
                     });
@@ -133,7 +135,7 @@ pub fn assemble(code: []const u8) ![4096]u16 {
         warn("{}: Missing any instruction block\n", line_number);
         had_errors = true;
     } else {
-        std.debug.assert((try blocks.put(current_block_name.?, current_block.?)) == null);
+        try blocks.putNoClobber(current_block_name.?, current_block.?);
     }
 
     // Codegen stage
@@ -144,17 +146,17 @@ pub fn assemble(code: []const u8) ![4096]u16 {
     // Iterate through all vardefs and blocks per-page and give them addresses
     while (page < 15) : (page += 1) {
         // On page 0, reserve the first instruction for the entry point
-        var in_page_cursor: usize = if (page == 0) usize(1) else 0;
+        var in_page_cursor: usize = if (page == 0) 1 else 0;
         var var_it = vardefs.iterator();
         while (var_it.next()) |vardef| {
             if (vardef.value.page != page) continue;
-            vardef.value.addr = (u12(page) << 8) + @truncate(u12, in_page_cursor);
+            vardef.value.addr = (@as(u12, page) << 8) + @truncate(u12, in_page_cursor);
             in_page_cursor += 1;
         }
         var block_it = blocks.iterator();
         while (block_it.next()) |block| {
             if (block.value.page != page) continue;
-            block.value.addr = (u12(page) << 8) + @truncate(u12, in_page_cursor);
+            block.value.addr = (@as(u12, page) << 8) + @truncate(u12, in_page_cursor);
             in_page_cursor += block.value.instructions.count();
         }
         if (in_page_cursor > 255) {
@@ -167,7 +169,7 @@ pub fn assemble(code: []const u8) ![4096]u16 {
     // Commit vardefs into memory
     var var_iter = vardefs.iterator();
     while (var_iter.next()) |vardef| {
-        memory[vardef.value.addr orelse unreachable] = vardef.value.value;
+        memory[vardef.value.addr.?] = vardef.value.value;
     }
 
     // Commit blocks into memory
@@ -195,7 +197,7 @@ pub fn assemble(code: []const u8) ![4096]u16 {
                             had_errors = true;
                             continue;
                         };
-                        word += if (truncate_address) @truncate(u8, (var_ref.addr orelse unreachable)) else (var_ref.addr orelse unreachable);
+                        word += if (truncate_address) @truncate(u8, var_ref.addr.?) else var_ref.addr.?;
                     },
                     ':' => {
                         const block_ref = blocks.getValue(address) orelse {
@@ -203,7 +205,7 @@ pub fn assemble(code: []const u8) ![4096]u16 {
                             had_errors = true;
                             continue;
                         };
-                        word += if (truncate_address) @truncate(u8, (block_ref.addr orelse unreachable)) else (block_ref.addr orelse unreachable);
+                        word += if (truncate_address) @truncate(u8, block_ref.addr.?) else block_ref.addr.?;
                     },
                     else => {
                         warn("Encountered malformed address {}\n", address);
@@ -211,7 +213,7 @@ pub fn assemble(code: []const u8) ![4096]u16 {
                     },
                 }
             }
-            memory[(block.value.addr orelse unreachable) + index] = word;
+            memory[block.value.addr.? + index] = word;
         }
     }
 
@@ -224,7 +226,7 @@ pub fn assemble(code: []const u8) ![4096]u16 {
         had_errors = true;
         return error.ParserFailure;
     }
-    memory[0] = (u16(@enumToInt(GlobalOpcode.PageAndJump)) << 12) + blocks.getValue(entry_point.?).?.addr.?;
+    memory[0] = (@as(u16, @enumToInt(GlobalOpcode.PageAndJump)) << 12) + blocks.getValue(entry_point.?).?.addr.?;
 
     return if (had_errors) error.ParserFailure else memory;
 }
@@ -234,53 +236,53 @@ const eql = std.mem.eql;
 fn parse_instruction(token: []const u8) !u16 {
     if (eql(u8, token, "noopr")) {
         // Starting here: Global Opcodes
-        return u16(@enumToInt(GlobalOpcode.NoOp)) << 12;
+        return @as(u16, @enumToInt(GlobalOpcode.NoOp)) << 12;
     } else if (eql(u8, token, "pgjmp")) {
-        return u16(@enumToInt(GlobalOpcode.PageAndJump)) << 12;
+        return @as(u16, @enumToInt(GlobalOpcode.PageAndJump)) << 12;
     } else if (eql(u8, token, "fftch")) {
-        return u16(@enumToInt(GlobalOpcode.FarFetch)) << 12;
+        return @as(u16, @enumToInt(GlobalOpcode.FarFetch)) << 12;
     } else if (eql(u8, token, "fwrte")) {
-        return u16(@enumToInt(GlobalOpcode.FarWrite)) << 12;
+        return @as(u16, @enumToInt(GlobalOpcode.FarWrite)) << 12;
     } else if (eql(u8, token, "incby")) {
         // Starting here: Paged Opcodes
-        return u16(@enumToInt(PagedOpcode.IncrementBy)) << 8;
+        return @as(u16, @enumToInt(PagedOpcode.IncrementBy)) << 8;
     } else if (eql(u8, token, "minus")) {
-        return u16(@enumToInt(PagedOpcode.Minus)) << 8;
+        return @as(u16, @enumToInt(PagedOpcode.Minus)) << 8;
     } else if (eql(u8, token, "fetch")) {
-        return u16(@enumToInt(PagedOpcode.Fetch)) << 8;
+        return @as(u16, @enumToInt(PagedOpcode.Fetch)) << 8;
     } else if (eql(u8, token, "write")) {
-        return u16(@enumToInt(PagedOpcode.Write)) << 8;
+        return @as(u16, @enumToInt(PagedOpcode.Write)) << 8;
     } else if (eql(u8, token, "jmpto")) {
-        return u16(@enumToInt(PagedOpcode.Jump)) << 8;
+        return @as(u16, @enumToInt(PagedOpcode.Jump)) << 8;
     } else if (eql(u8, token, "jmpez")) {
-        return u16(@enumToInt(PagedOpcode.JumpEZ)) << 8;
+        return @as(u16, @enumToInt(PagedOpcode.JumpEZ)) << 8;
     } else if (eql(u8, token, "cease")) {
         // Starting here: Extended Opcodes
-        return 0xf000 + u16(@enumToInt(ExtendedOpcode.Halt));
+        return 0xf000 + @as(u16, @enumToInt(ExtendedOpcode.Halt));
     } else if (eql(u8, token, "outnm")) {
-        return 0xf000 + u16(@enumToInt(ExtendedOpcode.OutputNumeric));
+        return 0xf000 + @as(u16, @enumToInt(ExtendedOpcode.OutputNumeric));
     } else if (eql(u8, token, "outch")) {
-        return 0xf000 + u16(@enumToInt(ExtendedOpcode.OutputChar));
+        return 0xf000 + @as(u16, @enumToInt(ExtendedOpcode.OutputChar));
     } else if (eql(u8, token, "outhx")) {
-        return 0xf000 + u16(@enumToInt(ExtendedOpcode.OutputHex));
+        return 0xf000 + @as(u16, @enumToInt(ExtendedOpcode.OutputHex));
     } else if (eql(u8, token, "outlf")) {
-        return 0xf000 + u16(@enumToInt(ExtendedOpcode.OutputLinefeed));
+        return 0xf000 + @as(u16, @enumToInt(ExtendedOpcode.OutputLinefeed));
     } else if (eql(u8, token, "inacc")) {
-        return 0xf000 + u16(@enumToInt(ExtendedOpcode.InputACC));
+        return 0xf000 + @as(u16, @enumToInt(ExtendedOpcode.InputACC));
     } else if (eql(u8, token, "rando")) {
-        return 0xf000 + u16(@enumToInt(ExtendedOpcode.Randomize));
+        return 0xf000 + @as(u16, @enumToInt(ExtendedOpcode.Randomize));
     } else if (eql(u8, token, "augmt")) {
-        return 0xf000 + u16(@enumToInt(ExtendedOpcode.Augment));
+        return 0xf000 + @as(u16, @enumToInt(ExtendedOpcode.Augment));
     } else if (eql(u8, token, "dimin")) {
-        return 0xf000 + u16(@enumToInt(ExtendedOpcode.Diminish));
+        return 0xf000 + @as(u16, @enumToInt(ExtendedOpcode.Diminish));
     } else if (eql(u8, token, "shfl4")) {
-        return 0xf000 + u16(@enumToInt(ExtendedOpcode.ShiftLeftFour));
+        return 0xf000 + @as(u16, @enumToInt(ExtendedOpcode.ShiftLeftFour));
     } else if (eql(u8, token, "shfl1")) {
-        return 0xf000 + u16(@enumToInt(ExtendedOpcode.ShiftLeftOne));
+        return 0xf000 + @as(u16, @enumToInt(ExtendedOpcode.ShiftLeftOne));
     } else if (eql(u8, token, "shfr4")) {
-        return 0xf000 + u16(@enumToInt(ExtendedOpcode.ShiftRightFour));
+        return 0xf000 + @as(u16, @enumToInt(ExtendedOpcode.ShiftRightFour));
     } else if (eql(u8, token, "shfr1")) {
-        return 0xf000 + u16(@enumToInt(ExtendedOpcode.ShiftRightOne));
+        return 0xf000 + @as(u16, @enumToInt(ExtendedOpcode.ShiftRightOne));
     }
     return error.InvalidOpcode;
 }

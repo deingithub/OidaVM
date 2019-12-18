@@ -26,7 +26,7 @@ pub fn main() !void {
     } else if (std.mem.eql(u8, arguments[1], "dbg")) {
         mode = .Debug;
     } else {
-        std.debug.warn("unknown argument {}\n", arguments[1]);
+        std.debug.warn("unknown argument {}\n", .{arguments[1]});
         printUsageAndExit();
     }
 
@@ -61,21 +61,21 @@ pub fn main() !void {
     var breakpoints = std.ArrayList(u12).init(alloc);
     var in_buffer = std.Buffer.initSize(alloc, 0) catch @panic("OOM");
 
-    std.debug.warn("Welcome to oiDB!\n{}\n", oidb_usage);
-    std.debug.warn("oiDB@{X:0^3}) ", vm.instruction_ptr);
-    repl: while (true) : (std.debug.warn("\noiDB@{X:0^3}) ", vm.instruction_ptr)) {
+    std.debug.warn("Welcome to oiDB!\n{}\n", .{oidb_usage});
+    std.debug.warn("oiDB@{X:0^3}) ", .{vm.instruction_ptr});
+    repl: while (true) : (std.debug.warn("\noiDB@{X:0^3}) ", .{vm.instruction_ptr})) {
         const line = try std.io.readLine(&buffer);
         var tokens = std.mem.tokenize(line, " ");
         const instruction_token = tokens.next() orelse continue;
         switch (instruction_token[0]) {
             'h', '?' => {
                 // Display help
-                std.debug.warn("{}", oidb_usage);
+                std.debug.warn("{}", .{oidb_usage});
             },
             'n' => {
                 // Step to next instruction
                 if (vm.memory[vm.instruction_ptr] == 0xf00f) {
-                    std.debug.warn("Reached cease instruction");
+                    std.debug.warn("Reached cease instruction", .{});
                     continue :repl;
                 } else {
                     vm.step();
@@ -84,12 +84,12 @@ pub fn main() !void {
             },
             'd' => {
                 // Dump VM state
-                std.debug.warn("\n");
+                std.debug.warn("\n", .{});
                 vm.dump();
             },
             'q' => {
                 // Exit
-                std.debug.warn("\n");
+                std.debug.warn("\n", .{});
                 std.process.exit(0);
             },
             'i' => {
@@ -97,14 +97,14 @@ pub fn main() !void {
                 const address_token = tokens.next() orelse continue;
                 const value = std.fmt.parseInt(u12, address_token, 16) catch continue;
                 vm.instruction_ptr = value;
-                std.debug.warn("Set instruction pointer to 0x{X:0^3}", value);
+                std.debug.warn("Set instruction pointer to 0x{X:0^3}", .{value});
             },
             'a' => {
                 // Set ACC
                 const value_token = tokens.next() orelse continue;
                 const value = std.fmt.parseInt(u16, value_token, 16) catch continue;
                 vm.accumulator = value;
-                std.debug.warn("Set ACC to 0x{X:0^4}", value);
+                std.debug.warn("Set ACC to 0x{X:0^4}", .{value});
             },
             's' => {
                 // Set arbitrary memory
@@ -113,13 +113,13 @@ pub fn main() !void {
                 const address = std.fmt.parseInt(u12, address_token, 16) catch continue;
                 const value = std.fmt.parseInt(u16, value_token, 16) catch continue;
                 vm.memory[address] = value;
-                std.debug.warn("Set memory at 0x{X:0^3} to 0x{X:0^4}", address, value);
+                std.debug.warn("Set memory at 0x{X:0^3} to 0x{X:0^4}", .{ address, value });
             },
             'p' => {
                 // Print memory
                 const address_token = tokens.next() orelse continue;
                 const address = std.fmt.parseInt(u12, address_token, 16) catch continue;
-                std.debug.warn("Memory at 0x{X:0^3}: 0x{X:0^4}", address, vm.memory[address]);
+                std.debug.warn("Memory at 0x{X:0^3}: 0x{X:0^4}", .{ address, vm.memory[address] });
             },
             'b' => {
                 // Add breakpoint
@@ -127,19 +127,25 @@ pub fn main() !void {
                 const address = std.fmt.parseInt(u12, address_token, 16) catch continue;
                 for (breakpoints.toSlice()) |bp| {
                     if (bp == address) {
-                        std.debug.warn("Breakpoint already present at 0x{X:0^3}", address);
+                        std.debug.warn("Breakpoint already present at 0x{X:0^3}", .{address});
                         continue :repl;
                     }
                 }
                 try breakpoints.append(address);
-                std.debug.warn("Added breakpoint at 0x{X:0^3}", address);
+                std.debug.warn("Added breakpoint at 0x{X:0^3}", .{address});
             },
             'l' => {
                 // List breakpoints
                 const num_breakpoints = breakpoints.toSlice().len;
-                std.debug.warn("{} Breakpoint{} ", num_breakpoints, if (num_breakpoints == 0) "s" else if (num_breakpoints == 1) ":" else "s:");
+                std.debug.warn("{} Breakpoint{} ", .{
+                    num_breakpoints,
+                    if (num_breakpoints == 0) "s" else if (num_breakpoints == 1) ":" else "s:",
+                });
                 for (breakpoints.toSlice()) |bp, i| {
-                    std.debug.warn("0x{X:0^3}{}", bp, if (i == num_breakpoints - 1) "" else ", ");
+                    std.debug.warn("0x{X:0^3}{}", .{
+                        bp,
+                        if (i == num_breakpoints - 1) "" else ", ",
+                    });
                 }
             },
             'r' => {
@@ -149,18 +155,18 @@ pub fn main() !void {
                 for (breakpoints.toSlice()) |bp, i| {
                     if (bp == address) {
                         _ = breakpoints.orderedRemove(i);
-                        std.debug.warn("Removed breakpoint at 0x{X:0^3}", address);
+                        std.debug.warn("Removed breakpoint at 0x{X:0^3}", .{address});
                         continue :repl;
                     }
                 }
-                std.debug.warn("No breakpoint at 0x{X:0^3} to remove", address);
+                std.debug.warn("No breakpoint at 0x{X:0^3} to remove", .{address});
             },
             'c' => {
                 // Continue execution up to next breakpoint
                 const pointer_at_start = vm.instruction_ptr;
                 while (vm.instruction_ptr < 4095) : (vm.instruction_ptr += 1) {
                     if (vm.memory[vm.instruction_ptr] == 0xf00f) {
-                        std.debug.warn("Reached cease instruction");
+                        std.debug.warn("Reached cease instruction", .{});
                         continue :repl;
                     }
                     for (breakpoints.toSlice()) |bp| {
@@ -176,7 +182,7 @@ pub fn main() !void {
 }
 
 fn printUsageAndExit() noreturn {
-    std.debug.warn("{}", oidavm_usage);
+    std.debug.warn("{}", .{oidavm_usage});
     std.process.exit(0);
 }
 

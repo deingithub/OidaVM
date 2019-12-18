@@ -95,7 +95,7 @@ pub const OidaVm = struct {
             const global_address = (@as(u12, this.page) << 8) + @truncate(u8, word);
             const opcode = @intCast(u8, word >> 8);
             if (!enum_check(PagedOpcode, opcode)) {
-                this.vm_panic("Encountered invalid opcode 0x{X:0^2} at address 0x{X:0^3}.", opcode, this.instruction_ptr);
+                this.vm_panic("Encountered invalid opcode 0x{X:0^2} at address 0x{X:0^3}.", .{ opcode, this.instruction_ptr });
             }
             switch (@intToEnum(PagedOpcode, opcode)) {
                 .IncrementBy => if (@as(usize, this.accumulator) + this.memory[global_address] >= 65535) {
@@ -124,7 +124,7 @@ pub const OidaVm = struct {
             const global_address = @truncate(u12, word);
             const opcode = @intCast(u4, word >> 12);
             if (!enum_check(GlobalOpcode, opcode)) {
-                this.vm_panic("Encountered invalid opcode 0x{X} at address 0x{X:0^3}.", opcode, this.instruction_ptr);
+                this.vm_panic("Encountered invalid opcode 0x{X} at address 0x{X:0^3}.", .{ opcode, this.instruction_ptr });
             }
             switch (@intToEnum(GlobalOpcode, opcode)) {
                 .NoOp => return,
@@ -136,24 +136,24 @@ pub const OidaVm = struct {
                 },
                 .Extend => {
                     if (!enum_check(ExtendedOpcode, global_address)) {
-                        this.vm_panic("Encountered invalid opcode 0xF{X:0^3} at address 0x{X:0^3}.", global_address, this.instruction_ptr);
+                        this.vm_panic("Encountered invalid opcode 0xF{X:0^3} at address 0x{X:0^3}.", .{ global_address, this.instruction_ptr });
                     }
                     switch (@intToEnum(ExtendedOpcode, global_address)) {
                         .Halt => return, // Handled by eval()
-                        .OutputNumeric => std.debug.warn("{}", this.accumulator),
-                        .OutputChar => std.debug.warn("{c}", @truncate(u8, this.accumulator)),
-                        .OutputHex => std.debug.warn("{X:0^4}", this.accumulator),
-                        .OutputLinefeed => std.debug.warn("\n"),
+                        .OutputNumeric => std.debug.warn("{}", .{this.accumulator}),
+                        .OutputChar => std.debug.warn("{c}", .{@truncate(u8, this.accumulator)}),
+                        .OutputHex => std.debug.warn("{X:0^4}", .{this.accumulator}),
+                        .OutputLinefeed => std.debug.warn("\n", .{}),
                         .InputACC => {
-                            var buffer = std.Buffer.initSize(std.heap.direct_allocator, 0) catch this.vm_panic("OOM");
+                            var buffer = std.Buffer.initSize(std.heap.direct_allocator, 0) catch this.vm_panic("OOM", .{});
                             defer buffer.deinit();
 
                             this.accumulator = while (true) : ({
                                 buffer.shrink(0);
-                                std.debug.warn("Please use hex format: 0000-ffff\n");
+                                std.debug.warn("Please use hex format: 0000-ffff\n", .{});
                             }) {
-                                std.debug.warn("Instruction at 0x{X:0^3} requests one word input: ", this.instruction_ptr);
-                                const line = std.io.readLine(&buffer) catch this.vm_panic("Failed to read from STDIN");
+                                std.debug.warn("Instruction at 0x{X:0^3} requests one word input: ", .{this.instruction_ptr});
+                                const line = std.io.readLine(&buffer) catch this.vm_panic("Failed to read from STDIN", .{});
                                 break std.fmt.parseInt(u16, buffer.toSlice(), 16) catch continue;
                             } else unreachable;
                         },
@@ -212,13 +212,22 @@ pub const OidaVm = struct {
 
     /// Dumps the VM's state to stderr.
     fn dump(this: OidaVm) void {
-        std.debug.warn("== OidaVM dump ==\n");
-        std.debug.warn("Instruction Pointer: 0x{X:0^3}\n", this.instruction_ptr);
-        std.debug.warn("Accumulator: 0x{X:0^4}\n", this.accumulator);
-        std.debug.warn("Page {X} [{X:0^3}..{X:0^3}]\n", this.page, this.page * @as(u16, 256), this.page * @as(u16, 256) + 255);
+        std.debug.warn(
+            \\== OidaVM dump
+            \\Instruction Pointer: 0x{X:0^3}
+            \\Accumulator: 0x{X:0^4}
+            \\Page {X} [{X:0^3}..{X:0^3}]
+            \\
+        , .{
+            this.instruction_ptr,
+            this.accumulator,
+            this.page,
+            this.page * @as(u16, 256),
+            this.page * @as(u16, 256) + 255,
+        });
 
         var elided = false;
-        std.debug.warn("Memory: \n");
+        std.debug.warn("Memory: \n", .{});
         for (this.memory) |val, addr| {
             // Check if this row is entirely made up of zeroes, if yes, skip it
             const row_start = addr - addr % 8;
@@ -227,14 +236,17 @@ pub const OidaVm = struct {
                 continue;
             }
             if (elided) {
-                std.debug.warn(" [elided]\n");
+                std.debug.warn(" [elided]\n", .{});
                 elided = false;
             }
-            std.debug.warn("{}{}0x{X:0^3}: 0x{X:0^4}{} {}", if (addr == this.instruction_ptr) "\x1b[7m" else "", // Inverted formatting for instruction ptr
+            std.debug.warn("{}{}0x{X:0^3}: 0x{X:0^4}{} {}", .{
+                if (addr == this.instruction_ptr) "\x1b[7m" else "", // Inverted formatting for instruction ptr
                 if (val != 0) "\x1b[1m" else "", // Bold formatting for non-null values
-                addr, val, if (addr == this.instruction_ptr or val != 0) "\x1b[0m" else "", // Reset all formatting
-                if ((addr + 1) % 8 == 0) "\n" else "| " // If next entry is 8, 16, … print newline
-            );
+                addr,
+                val,
+                if (addr == this.instruction_ptr or val != 0) "\x1b[0m" else "", // Reset all formatting
+                if ((addr + 1) % 8 == 0) "\n" else "| ", // If next entry is 8, 16, … print newline
+            });
         }
         if (elided) std.debug.warn(" [elided]\n");
         std.debug.warn("== end dump ==\n");
@@ -247,7 +259,7 @@ pub const OidaVm = struct {
         this.memory = [_]u16{0} ** 4096;
     }
 
-    fn vm_panic(this: *OidaVm, comptime format: []const u8, args: ...) noreturn {
+    fn vm_panic(this: *OidaVm, comptime format: []const u8, args: var) noreturn {
         std.debug.warn("\n== VM PANIC ==\n" ++ format ++ "\n", args);
         this.dump();
         std.process.exit(1);

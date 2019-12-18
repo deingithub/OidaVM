@@ -43,25 +43,25 @@ pub fn assemble(code: []const u8) ![4096]u16 {
                 if (std.mem.eql(u8, first_token, "@page")) {
                     // Set memory page
                     const page_token = tokens.next() orelse {
-                        warn("{}: Missing page number\n", line_number);
+                        warn("{}: Missing page number\n", .{line_number});
                         had_errors = true;
                         continue;
                     };
                     current_page = std.fmt.parseInt(u4, page_token, 16) catch {
-                        warn("{}: Invalid page number {}\n", line_number, page_token);
+                        warn("{}: Invalid page number {}\n", .{ line_number, page_token });
                         had_errors = true;
                         continue;
                     };
                 } else if (std.mem.eql(u8, first_token, "@entry")) {
                     // Set entry point label
                     const label_token = tokens.next() orelse {
-                        warn("{}: Missing entry point label\n", line_number);
+                        warn("{}: Missing entry point label\n", .{line_number});
                         had_errors = true;
                         continue;
                     };
                     entry_point = label_token;
                 } else {
-                    warn("{}: Unknown directive {}\n", line_number, first_token);
+                    warn("{}: Unknown directive {}\n", .{ line_number, first_token });
                     had_errors = true;
                 }
             },
@@ -69,12 +69,12 @@ pub fn assemble(code: []const u8) ![4096]u16 {
                 const variable_name = first_token;
                 const value_token = tokens.next() orelse "0";
                 const value = std.fmt.parseInt(u16, value_token, 16) catch {
-                    warn("{}: Invalid variable value {}\n", line_number, value_token);
+                    warn("{}: Invalid variable value {}\n", .{ line_number, value_token });
                     had_errors = true;
                     continue;
                 };
                 if (vardefs.contains(variable_name)) {
-                    warn("{}: Redefinition of variable {}\n", line_number, variable_name);
+                    warn("{}: Redefinition of variable {}\n", .{ line_number, variable_name });
                     had_errors = true;
                     continue;
                 }
@@ -92,12 +92,12 @@ pub fn assemble(code: []const u8) ![4096]u16 {
                     try blocks.putNoClobber(current_block_name.?, block);
                 }
                 if (first_token.len < 2) {
-                    warn("{}: Missing block name\n", line_number);
+                    warn("{}: Missing block name\n", .{line_number});
                     had_errors = true;
                     continue;
                 }
                 if (blocks.contains(first_token)) {
-                    warn("{}: Redefinition of block {}\n", line_number, first_token);
+                    warn("{}: Redefinition of block {}\n", .{ line_number, first_token });
                     had_errors = true;
                     continue;
                 }
@@ -110,7 +110,7 @@ pub fn assemble(code: []const u8) ![4096]u16 {
             },
             else => {
                 if (first_token.len != 5) {
-                    warn("{}: Malformed instruction {}", line_number, first_token);
+                    warn("{}: Malformed instruction {}", .{ line_number, first_token });
                     had_errors = true;
                     continue;
                 }
@@ -122,7 +122,7 @@ pub fn assemble(code: []const u8) ![4096]u16 {
                         .address = tokens.next(),
                     });
                 } else {
-                    warn("{}: Instruction outside block\n", line_number);
+                    warn("{}: Instruction outside block\n", .{line_number});
                     had_errors = true;
                     continue;
                 }
@@ -132,7 +132,7 @@ pub fn assemble(code: []const u8) ![4096]u16 {
 
     // Save last open block into ArrayList
     if (current_block == null or current_block_name == null) {
-        warn("{}: Missing any instruction block\n", line_number);
+        warn("{}: Missing any instruction block\n", .{line_number});
         had_errors = true;
     } else {
         try blocks.putNoClobber(current_block_name.?, current_block.?);
@@ -157,10 +157,10 @@ pub fn assemble(code: []const u8) ![4096]u16 {
         while (block_it.next()) |block| {
             if (block.value.page != page) continue;
             block.value.addr = (@as(u12, page) << 8) + @truncate(u12, in_page_cursor);
-            in_page_cursor += block.value.instructions.count();
+            in_page_cursor += block.value.instructions.len;
         }
         if (in_page_cursor > 255) {
-            warn("Page {} is too full [{}/256]\n", page, in_page_cursor);
+            warn("Page {} is too full [{}/256]\n", .{ page, in_page_cursor });
             had_errors = true;
             continue;
         }
@@ -175,9 +175,7 @@ pub fn assemble(code: []const u8) ![4096]u16 {
     // Commit blocks into memory
     var block_iter = blocks.iterator();
     while (block_iter.next()) |block| {
-        var instruction_iter = block.value.instructions.iterator();
-        var index: usize = 0;
-        while (instruction_iter.next()) |instruction| : (index += 1) {
+        for (block.value.instructions.toSlice()) |instruction, index| {
             const opcode = parse_instruction(instruction.opcode) catch {
                 warn("Encountered invalid opcode {}\n", instruction);
                 had_errors = true;
@@ -218,11 +216,11 @@ pub fn assemble(code: []const u8) ![4096]u16 {
     }
 
     if (entry_point == null) {
-        warn("No entry point found\n");
+        warn("No entry point found\n", .{});
         had_errors = true;
         return error.ParserFailure;
     } else if (!blocks.contains(entry_point.?)) {
-        warn("Unknown entry point label {}\n", entry_point);
+        warn("Unknown entry point label {}\n", .{entry_point});
         had_errors = true;
         return error.ParserFailure;
     }

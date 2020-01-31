@@ -137,14 +137,17 @@ pub fn main() !void {
             'l' => {
                 // List breakpoints
                 const num_breakpoints = breakpoints.toSlice().len;
+                const fmt_pluralize = if (num_breakpoints == 0) "s" else if (num_breakpoints == 1) ":" else "s:";
+
                 std.debug.warn("{} Breakpoint{} ", .{
                     num_breakpoints,
-                    if (num_breakpoints == 0) "s" else if (num_breakpoints == 1) ":" else "s:",
+                    fmt_pluralize,
                 });
                 for (breakpoints.toSlice()) |bp, i| {
+                    const fmt_cond_comma = if (i == num_breakpoints - 1) "" else ", ";
                     std.debug.warn("0x{X:0^3}{}", .{
                         bp,
-                        if (i == num_breakpoints - 1) "" else ", ",
+                        fmt_cond_comma,
                     });
                 }
             },

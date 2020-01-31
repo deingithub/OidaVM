@@ -177,7 +177,7 @@ pub fn assemble(code: []const u8) ![4096]u16 {
     while (block_iter.next()) |block| {
         for (block.value.instructions.toSlice()) |instruction, index| {
             const opcode = parse_instruction(instruction.opcode) catch {
-                warn("Encountered invalid opcode {}\n", instruction);
+                warn("Encountered invalid opcode {}\n", .{instruction});
                 had_errors = true;
                 continue;
             };
@@ -185,13 +185,13 @@ pub fn assemble(code: []const u8) ![4096]u16 {
             const truncate_address = (word >= 0x1000 and word <= 0x9fff);
             if (instruction.address) |address| {
                 if (word >= 0xf000) {
-                    warn("Encountered extended opcode {} with address\n", instruction.opcode);
+                    warn("Encountered extended opcode {} with address\n", .{instruction.opcode});
                     had_errors = true;
                 }
                 switch (address[0]) {
                     '$' => {
                         const var_ref = vardefs.getValue(address) orelse {
-                            warn("Encountered unknown variable {}\n", address);
+                            warn("Encountered unknown variable {}\n", .{address});
                             had_errors = true;
                             continue;
                         };
@@ -199,14 +199,14 @@ pub fn assemble(code: []const u8) ![4096]u16 {
                     },
                     ':' => {
                         const block_ref = blocks.getValue(address) orelse {
-                            warn("Encountered unknown label {}\n", address);
+                            warn("Encountered unknown label {}\n", .{address});
                             had_errors = true;
                             continue;
                         };
                         word += if (truncate_address) @truncate(u8, block_ref.addr.?) else block_ref.addr.?;
                     },
                     else => {
-                        warn("Encountered malformed address {}\n", address);
+                        warn("Encountered malformed address {}\n", .{address});
                         had_errors = true;
                     },
                 }

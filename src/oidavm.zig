@@ -239,17 +239,25 @@ pub const OidaVm = struct {
                 std.debug.warn(" [elided]\n", .{});
                 elided = false;
             }
+            // Format instruction pointer location inverted
+            const fmt_iptr_inverted = if (addr == this.instruction_ptr) "\x1b[7m" else "";
+            // Format non-null values bold
+            const fmt_nonnull_bold = if (val != 0) "\x1b[1m" else "";
+            // Reset formatting
+            const fmt_reset = if (addr == this.instruction_ptr or val != 0) "\x1b[0m" else "";
+            // If next entry is 8, 16, … print newline
+            const fmt_cond_newline = if ((addr + 1) % 8 == 0) "\n" else "| ";
             std.debug.warn("{}{}0x{X:0^3}: 0x{X:0^4}{} {}", .{
-                if (addr == this.instruction_ptr) "\x1b[7m" else "", // Inverted formatting for instruction ptr
-                if (val != 0) "\x1b[1m" else "", // Bold formatting for non-null values
+                fmt_iptr_inverted,
+                fmt_nonnull_bold,
                 addr,
                 val,
-                if (addr == this.instruction_ptr or val != 0) "\x1b[0m" else "", // Reset all formatting
-                if ((addr + 1) % 8 == 0) "\n" else "| ", // If next entry is 8, 16, … print newline
+                fmt_reset,
+                fmt_cond_newline,
             });
         }
-        if (elided) std.debug.warn(" [elided]\n");
-        std.debug.warn("== end dump ==\n");
+        if (elided) std.debug.warn(" [elided]\n", .{});
+        std.debug.warn("== end dump ==\n", .{});
     }
 
     /// Resets the VM to starting conditions.

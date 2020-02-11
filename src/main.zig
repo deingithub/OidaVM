@@ -30,7 +30,7 @@ pub fn main() !void {
         printUsageAndExit();
     }
 
-    var file = try std.fs.File.openRead(arguments[2]);
+    var file = try std.fs.cwd().openFile(arguments[2], .{});
     defer file.close();
 
     var buffer = try std.Buffer.initSize(alloc, 0);

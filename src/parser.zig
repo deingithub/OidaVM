@@ -19,7 +19,7 @@ const VariableDef = struct {
 };
 
 pub fn assemble(code: []const u8) ![4096]u16 {
-    var allocator = std.heap.ArenaAllocator.init(std.heap.direct_allocator);
+    var allocator = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer allocator.deinit();
     const alloc = &allocator.allocator;
     var had_errors = false;
@@ -33,7 +33,7 @@ pub fn assemble(code: []const u8) ![4096]u16 {
 
     // Parsing stage
     var line_number: usize = 1;
-    var lines = std.mem.separate(code, "\n");
+    var lines = std.mem.split(code, "\n");
     while (lines.next()) |line| : (line_number += 1) {
         var tokens = std.mem.tokenize(line, " ");
         const first_token = tokens.next() orelse continue; // Skip empty lines
@@ -157,7 +157,7 @@ pub fn assemble(code: []const u8) ![4096]u16 {
         while (block_it.next()) |block| {
             if (block.value.page != page) continue;
             block.value.addr = (@as(u12, page) << 8) + @truncate(u12, in_page_cursor);
-            in_page_cursor += block.value.instructions.len;
+            in_page_cursor += block.value.instructions.items.len;
         }
         if (in_page_cursor > 255) {
             warn("Page {} is too full [{}/256]\n", .{ page, in_page_cursor });

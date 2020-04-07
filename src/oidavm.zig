@@ -145,16 +145,13 @@ pub const OidaVm = struct {
                         .OutputHex => std.debug.warn("{X:0^4}", .{this.accumulator}),
                         .OutputLinefeed => std.debug.warn("\n", .{}),
                         .InputACC => {
-                            var buffer = std.Buffer.initSize(std.heap.direct_allocator, 0) catch this.vm_panic("OOM", .{});
-                            defer buffer.deinit();
+                            var in_buffer = std.ArrayList(u8).init(std.heap.page_allocator);
+                            defer in_buffer.deinit();
 
-                            this.accumulator = while (true) : ({
-                                buffer.shrink(0);
-                                std.debug.warn("Please use hex format: 0000-ffff\n", .{});
-                            }) {
+                            this.accumulator = while (true) : (std.debug.warn("Please use hex format: 0000-ffff\n", .{})) {
                                 std.debug.warn("Instruction at 0x{X:0^3} requests one word input: ", .{this.instruction_ptr});
-                                const line = std.io.readLine(&buffer) catch this.vm_panic("Failed to read from STDIN", .{});
-                                break std.fmt.parseInt(u16, buffer.toSlice(), 16) catch continue;
+                                std.io.getStdIn().inStream().readUntilDelimiterArrayList(&in_buffer, '\n', 1024) catch this.vm_panic("Failed to read from stdin", .{});
+                                break std.fmt.parseInt(u16, in_buffer.toSlice(), 16) catch continue;
                             } else unreachable;
                         },
                         .Randomize => {

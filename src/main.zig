@@ -8,64 +8,63 @@ const RunMode = enum {
 };
 
 pub fn main() !void {
-    var allocator = std.heap.ArenaAllocator.init(std.heap.direct_allocator);
+    var allocator = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer allocator.deinit();
     const alloc = &allocator.allocator;
 
     var arguments = try std.process.argsAlloc(alloc);
     defer std.process.argsFree(alloc, arguments);
 
-    var mode: RunMode = undefined;
-
-    if (arguments.len == 1) {
-        printUsageAndExit();
-    } else if (std.mem.eql(u8, arguments[1], "help") or std.mem.eql(u8, arguments[1], "--help")) {
-        printUsageAndExit();
-    } else if (std.mem.eql(u8, arguments[1], "run")) {
-        mode = .Run;
-    } else if (std.mem.eql(u8, arguments[1], "dbg")) {
-        mode = .Debug;
-    } else {
-        std.debug.warn("unknown argument {}\n", .{arguments[1]});
+    if (arguments.len < 2 or std.mem.eql(u8, arguments[1], "help") or std.mem.eql(u8, arguments[1], "--help")) {
         printUsageAndExit();
     }
 
+    var mode: RunMode = blk: {
+        if (std.mem.eql(u8, arguments[1], "run")) {
+            break :blk .Run;
+        } else if (std.mem.eql(u8, arguments[1], "dbg")) {
+            break :blk .Debug;
+        } else {
+            std.debug.warn("unknown argument {}\n", .{arguments[1]});
+            printUsageAndExit();
+        }
+    };
+
     var file = try std.fs.cwd().openFile(arguments[2], .{});
     defer file.close();
-
-    var buffer = try std.Buffer.initSize(alloc, 0);
-    var stream = &file.inStream().stream;
-    try stream.readAllBuffer(&buffer, (try file.getEndPos()) + 1);
+    const file_content = try file.inStream().readAllAlloc(alloc, try file.getEndPos());
 
     var timestamp = std.time.timestamp();
 
     var vm: OidaVm = .{
-        .memory = try parser.assemble(buffer.toSliceConst()),
+        .memory = try parser.assemble(file_content),
         .rng = std.rand.DefaultPrng.init(timestamp).random,
     };
 
     // Just run the program and exit
-
     if (mode == .Run) {
-        const entry_point = blk: {
-            if (arguments.len == 4) {
-                break :blk std.fmt.parseInt(u12, arguments[3], 16) catch 0;
-            } else break :blk 0;
-        };
+        const entry_point = if (arguments.len == 4)
+            (std.fmt.parseInt(u12, arguments[3], 16) catch 0)
+        else
+            0;
         vm.eval(entry_point);
         return;
     }
 
     // Run oiDB REPL
+    std.debug.warn(
+        "Welcome to oiDB!\n{}\noiDB@{X:0^3}) ",
+        .{
+            oidb_usage,
+            vm.instruction_ptr,
+        },
+    );
 
     var breakpoints = std.ArrayList(u12).init(alloc);
-    var in_buffer = std.Buffer.initSize(alloc, 0) catch @panic("OOM");
-
-    std.debug.warn("Welcome to oiDB!\n{}\n", .{oidb_usage});
-    std.debug.warn("oiDB@{X:0^3}) ", .{vm.instruction_ptr});
+    var in_buffer = std.ArrayList(u8).init(alloc);
     repl: while (true) : (std.debug.warn("\noiDB@{X:0^3}) ", .{vm.instruction_ptr})) {
-        const line = try std.io.readLine(&buffer);
-        var tokens = std.mem.tokenize(line, " ");
+        try std.io.getStdIn().inStream().readUntilDelimiterArrayList(&in_buffer, '\n', 1024);
+        var tokens = std.mem.tokenize(in_buffer.items, " ");
         const instruction_token = tokens.next() orelse continue;
         switch (instruction_token[0]) {
             'h', '?' => {

@@ -175,7 +175,7 @@ pub fn assemble(code: []const u8) ![4096]u16 {
     // Commit blocks into memory
     var block_iter = blocks.iterator();
     while (block_iter.next()) |block| {
-        for (block.value.instructions.toSlice()) |instruction, index| {
+        for (block.value.instructions.items) |instruction, index| {
             const opcode = parse_instruction(instruction.opcode) catch {
                 warn("Encountered invalid opcode {}\n", .{instruction});
                 had_errors = true;

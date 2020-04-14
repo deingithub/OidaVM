@@ -34,8 +34,7 @@ pub fn main() !void {
     defer file.close();
     const file_content = try file.inStream().readAllAlloc(alloc, try file.getEndPos());
 
-    var timestamp = std.time.timestamp();
-
+    var timestamp = std.time.timestamp(); // `var` to avoid comptime initialization of RNG
     var vm: OidaVm = .{
         .memory = try parser.assemble(file_content),
         .rng = std.rand.DefaultPrng.init(timestamp).random,
@@ -124,7 +123,7 @@ pub fn main() !void {
                 // Add breakpoint
                 const address_token = tokens.next() orelse continue;
                 const address = std.fmt.parseInt(u12, address_token, 16) catch continue;
-                for (breakpoints.toSlice()) |bp| {
+                for (breakpoints.items) |bp| {
                     if (bp == address) {
                         std.debug.warn("Breakpoint already present at 0x{X:0^3}", .{address});
                         continue :repl;
@@ -135,14 +134,14 @@ pub fn main() !void {
             },
             'l' => {
                 // List breakpoints
-                const num_breakpoints = breakpoints.toSlice().len;
+                const num_breakpoints = breakpoints.items.len;
                 const fmt_pluralize = if (num_breakpoints == 0) "s" else if (num_breakpoints == 1) ":" else "s:";
 
                 std.debug.warn("{} Breakpoint{} ", .{
                     num_breakpoints,
                     fmt_pluralize,
                 });
-                for (breakpoints.toSlice()) |bp, i| {
+                for (breakpoints.items) |bp, i| {
                     const fmt_cond_comma = if (i == num_breakpoints - 1) "" else ", ";
                     std.debug.warn("0x{X:0^3}{}", .{
                         bp,
@@ -154,7 +153,7 @@ pub fn main() !void {
                 // Remove breakpoint
                 const address_token = tokens.next() orelse continue;
                 const address = std.fmt.parseInt(u12, address_token, 16) catch continue;
-                for (breakpoints.toSlice()) |bp, i| {
+                for (breakpoints.items) |bp, i| {
                     if (bp == address) {
                         _ = breakpoints.orderedRemove(i);
                         std.debug.warn("Removed breakpoint at 0x{X:0^3}", .{address});
@@ -171,7 +170,7 @@ pub fn main() !void {
                         std.debug.warn("Reached cease instruction", .{});
                         continue :repl;
                     }
-                    for (breakpoints.toSlice()) |bp| {
+                    for (breakpoints.items) |bp| {
                         if (vm.instruction_ptr == bp and !(pointer_at_start == bp)) continue :repl;
                     }
                     vm.step();

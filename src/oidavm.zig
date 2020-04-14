@@ -151,7 +151,7 @@ pub const OidaVm = struct {
                             this.accumulator = while (true) : (std.debug.warn("Please use hex format: 0000-ffff\n", .{})) {
                                 std.debug.warn("Instruction at 0x{X:0^3} requests one word input: ", .{this.instruction_ptr});
                                 std.io.getStdIn().inStream().readUntilDelimiterArrayList(&in_buffer, '\n', 1024) catch this.vm_panic("Failed to read from stdin", .{});
-                                break std.fmt.parseInt(u16, in_buffer.toSlice(), 16) catch continue;
+                                break std.fmt.parseInt(u16, in_buffer.items, 16) catch continue;
                             } else unreachable;
                         },
                         .Randomize => {
